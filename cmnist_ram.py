@@ -8,18 +8,6 @@ from PIL import Image
 from torch.utils.data import Subset
 import torch.optim as optim
 
-from tools import entropy_drop_out, entropy_drop_out2
-import itertools
-import collections
-import numpy as np
-import torch
-from sklearn.metrics import confusion_matrix
-import torch.nn as nn
-from scm import scm_aleatoric
-from models import erm, Linear, test
-from torch.distributions import Categorical 
-import matplotlib.pyplot as plt
-
 def color_grayscale_arr(arr, red=True, flip_colours=True):
     """Converts grayscale image to either red or green"""
     assert arr.ndim == 2
@@ -58,7 +46,8 @@ class ColoredMNISTRAM(datasets.VisionDataset):
         target and transforms it.
     """
     def __init__(self, spurious_noise=None, causal_noise=None, train=True,
-                 transform=None, num_samples=5000, start_idx=0, flip_sp=False, fiif=False, root='./data'):
+                 transform=None, num_samples=5000, start_idx=0,
+                 add_digit=None, flip_sp=False, fiif=False, root='./data'):
         super(ColoredMNISTRAM, self).__init__(root, 
                                               transform=transform)
         self.start_idx = start_idx
@@ -69,7 +58,8 @@ class ColoredMNISTRAM(datasets.VisionDataset):
         self.train = train
         self.fiif = fiif
         self.prepare_colored_mnist()
-
+        self.add_digit = add_digit
+        
     def __getitem__(self, index):
         """
         Args:
@@ -83,6 +73,8 @@ class ColoredMNISTRAM(datasets.VisionDataset):
             img = self.transform(img)
         if self.target_transform is not None:
             target = self.target_transform(target)
+        if self.add_digit != None:
+            img[0,0] = self.add_digit
         return img, target
 
     def __len__(self):
@@ -181,14 +173,15 @@ def train_batched_weighted(model=None, epochs=30, dataloader=None, dataloader_te
     return (total_correct / total_points).cpu().item(), (total_correct_test/total_points_test).cpu().item()
     
 
-def test_batched(model, dataloader_test, device):
+def test_batched(model, dataloader_test):
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
     total_correct_test = 0
     total_points_test = 0
     model.eval()
     for batch_idx, (data, target) in enumerate(dataloader_test):
         data, target = data.to(device), target.to(device)
-        data = data.reshape(-1, 3*28*28)
-        output = model(data)
+        output = model(data).squeeze(1)
         out = output.argmax(axis=1)
         total_correct_test += sum(out == target)
         total_points_test += len(target)
