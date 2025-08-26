@@ -1,7 +1,6 @@
 import torch
-from torchvision.transforms import v2
-from models import CMLineardo, erm, BayesianNet
-from tools import entropy, stack_features, cross_entropy, plot_dictionary2, entropy_drop_out, plot_dictionary3, calc_ent_batched
+from models import BayesianNet
+from tools import calc_ent_batched
 from torchvision import transforms
 from cmnist_ram import ColoredMNISTRAM, train_batched, test_batched
 from torch.utils.data import Subset
@@ -108,7 +107,7 @@ def main(seed):
         print('sp acc', sp_correct)
         print('train', proportion_correct_train)
         print('test', proportion_correct_test)
-    plot_dictionary3(log)
+    plot_dictionary(log)
     return log
 
 if __name__ == "__main__":
