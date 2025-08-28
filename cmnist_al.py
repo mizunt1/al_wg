@@ -1,0 +1,149 @@
+from torchvision import transforms
+import numpy as np
+import collections
+import torch
+from models import BayesianNet
+from active_learning_data import ActiveLearningDataGroups
+from cmnist_ram import ColoredMNISTRAM, train_batched, test_batched
+from tools import calc_ent_batched, calc_ent_per_group_batched, plot_dictionary, log_dict
+from pprint import pprint
+from acquisitions import Random, UniformGroups, EntropyPerGroup, AccuracyPerGroup
+
+def main(seed):
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    al_iters = 3
+    al_batch_size = 100
+    use_cuda = True
+    #log = {'train_acc':[], 'ent1': [], 'cross_ent_1': [],
+    #       'ent2': [], 'cross_ent_2': [], 'test_acc':[],
+    #       'num points': [], 'causal acc': [], 'sp acc': []}
+    log = collections.defaultdict(list)
+    kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
+    trans = transforms.Compose([
+        transforms.ToTensor()
+    ])
+    # training datasets
+    dataset1_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
+                                     causal_noise=0.5,
+                                     transform=trans, start_idx=0, num_samples=5000, 
+                                     flip_sp=False, group_idx=0)
+    dataset2_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
+                                     causal_noise=0.0,
+                                     transform=trans, start_idx=5000, num_samples=1000, flip_sp=True, group_idx=1)
+    data_train = [dataset1_train, dataset2_train]    
+    dataset1_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                     causal_noise=0,
+                                     transform=trans, start_idx=6000, num_samples=5000,
+                                    flip_sp=False, group_idx=0)
+    dataset2_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                     causal_noise=0,
+                                     transform=trans, start_idx=7000, num_samples=5000,
+                                      flip_sp=True, group_idx=1)
+    dataloader1_unseen = torch.utils.data.DataLoader(dataset1_unseen,
+                                                      batch_size=64, **kwargs)
+    dataloader2_unseen = torch.utils.data.DataLoader(dataset2_unseen,
+                                                      batch_size=64, **kwargs)
+    dataset_test = ColoredMNISTRAM(root='./data',
+                                   train=False, spurious_noise=0.5, 
+                                   causal_noise=0.0,
+                                   transform=trans,
+                                   start_idx=0, 
+                                   num_samples=5000,
+                                   flip_sp=True)
+                                              
+    test_loader = torch.utils.data.DataLoader(dataset_test, batch_size=64, shuffle=True, **kwargs)
+    data_causal = ColoredMNISTRAM(root='./data', spurious_noise=0.5, 
+                                     causal_noise=0,
+                                     transform=trans, start_idx=8000, num_samples=5000, 
+                                     flip_sp=False)
+    data_sp = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
+                              causal_noise=0.5,
+                              transform=trans, start_idx=9000, 
+                              num_samples=500, flip_sp=False)
+
+    dataloader_causal = torch.utils.data.DataLoader(data_causal,
+                                                    batch_size=64, **kwargs)
+    dataloader_sp = torch.utils.data.DataLoader(data_sp,
+                                                batch_size=64, **kwargs)
+
+    al_data = ActiveLearningDataGroups(data_train, dataset_test, 2)
+    num_epochs = 1
+    al_size = 50
+    group_dict = {0:25, 1:25}
+    num_groups = len(data_train)
+    acquisition = 'accuracy'
+    method_map = {
+        'random': Random,
+        'uniform_groups': UniformGroups,
+        'entropy_per_group': EntropyPerGroup,
+        'accuracy': AccuracyPerGroup}
+
+    kwargs_map = {'random': {'al_data': al_data, 'al_size': al_size},
+                  'uniform_groups': {'al_data': al_data, 'group_proportions': group_dict},
+                  'entropy_per_group': {'al_data': al_data, 'al_size': al_size},
+                  'accuracy': {'al_data': al_data, 'al_size': al_size}}
+    # initial random acquisition to start with
+    start_acquisition = 'uniform_groups'
+    acquisition_method = method_map[start_acquisition](**kwargs_map[start_acquisition])
+    indices = acquisition_method.return_indices()
+    al_data.acquire_with_indices(indices)
+    if acquisition == 'accuracy':
+        acquisition_method = method_map[acquisition](**kwargs_map[acquisition])
+        # when using cross entropy based acquisition, we require 
+        # two uniform group acquisitions
+        model = BayesianNet(num_classes=2)
+        dataloader_train, dataloader_test = al_data.get_train_and_test_loader(batch_size=64)
+        # train model1 on first batch D1
+        proportion_correct_train, proportion_correct_test = train_batched(
+            model=model, dataloader=dataloader_train,
+            dataloader_test=dataloader_test, lr=0.001, epochs=num_epochs)
+        # sample uniformly from groups again to get D2
+        indices2 = acquisition_method.return_indices_random()
+        al_data.acquire_with_indices(indices2)
+        # test D2 on model 1 to obtain group sampling amounts 
+        acquisition_method.information_for_acquisition(model, indices2, num_groups, k=3)
+        # decide on the next aqcuisition based on the test accuracy results. 
+        indices = acquisition_method.return_indices()
+        al_data.acquire_with_indices(indices)
+    
+    for i in range(1, al_iters):
+        print('al iteration: ', i)
+        # setting up trainig
+        num_epochs += 100
+        acquisition_method = method_map[acquisition](**kwargs_map[acquisition])
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        model = BayesianNet(num_classes=2)
+        num_points = i*al_batch_size
+        dataloader_train, dataloader_test = al_data.get_train_and_test_loader(batch_size=64)
+        proportion_correct_train, proportion_correct_test = train_batched(
+            model=model, dataloader=dataloader_train,
+            dataloader_test=dataloader_test, lr=0.001, epochs=num_epochs)
+        # acquisition of data            
+        # using model get info for acquisition 
+        if acquisition in ['random', 'uniform_groups']:
+            pass
+        elif acquisition == 'entropy_per_group':
+            acquisition_method.information_for_acquisition(model, num_groups)
+        else:
+            acquisition_method.information_for_acquisition(model, indices, num_groups, k=3)
+        indices = acquisition_method.return_indices()
+        al_data.acquire_with_indices(indices)
+        # compute metrics and logging
+        ent1, cross_ent1 = calc_ent_batched(model, dataloader1_unseen, num_models=100)
+        ent2, cross_ent2 = calc_ent_batched(model, dataloader2_unseen, num_models=100)
+        causal_correct = test_batched(model, dataloader_causal)
+        sp_correct = test_batched(model, dataloader_sp)
+        to_log = {'train_acc': proportion_correct_train, 'test_acc': proportion_correct_test,
+                  'cross_ent_1': cross_ent1, 'cross_ent_2': cross_ent2,
+                  'num points':num_points, 'ent1': ent1, 'ent2' :ent2,
+                  'causal acc':causal_correct, 'sp acc': sp_correct}
+        pprint(to_log)
+        log = log_dict(log, to_log)
+    plot_dictionary(log)
+    return log
+
+if __name__ == "__main__":
+    seed = 0
+    log = main(seed)
