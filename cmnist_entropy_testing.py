@@ -1,11 +1,11 @@
 import torch
-from models import BayesianNet
-from tools import calc_ent_batched
 from torchvision import transforms
-from cmnist_ram import ColoredMNISTRAM, train_batched, test_batched
 from torch.utils.data import Subset
 import numpy as np
 
+from models import BayesianNet
+from tools import calc_ent_batched, plot_dictionary
+from cmnist_ram import ColoredMNISTRAM, train_batched, test_batched
 
 def main(seed):
     np.random.seed(seed)
@@ -20,7 +20,7 @@ def main(seed):
     ])
     # training datasets
     dataset1_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                     causal_noise=0.5,
+                                     causal_noise=0.0,
                                      transform=trans, start_idx=0, num_samples=5000, 
                                      flip_sp=False)
     dataset2_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 

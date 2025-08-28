@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image
 from torch.utils.data import Subset
 import torch.optim as optim
+import collections
 
 def color_grayscale_arr(arr, red=True, flip_colours=True):
     """Converts grayscale image to either red or green"""
@@ -47,7 +48,7 @@ class ColoredMNISTRAM(datasets.VisionDataset):
     """
     def __init__(self, spurious_noise=None, causal_noise=None, train=True,
                  transform=None, num_samples=5000, start_idx=0,
-                 add_digit=None, flip_sp=False, fiif=False, root='./data'):
+                 add_digit=None, flip_sp=False, fiif=False, root='./data', group_idx=-1):
         super(ColoredMNISTRAM, self).__init__(root, 
                                               transform=transform)
         self.start_idx = start_idx
@@ -59,7 +60,8 @@ class ColoredMNISTRAM(datasets.VisionDataset):
         self.fiif = fiif
         self.prepare_colored_mnist()
         self.add_digit = add_digit
-        
+        self.group_idx = group_idx
+
     def __getitem__(self, index):
         """
         Args:
@@ -75,7 +77,7 @@ class ColoredMNISTRAM(datasets.VisionDataset):
             target = self.target_transform(target)
         if self.add_digit != None:
             img[0,0] = self.add_digit
-        return img, target
+        return img, target, self.group_idx
 
     def __len__(self):
         return len(self.data_label_tuples)
@@ -111,7 +113,7 @@ def train_batched(model=None, epochs=30, dataloader=None, dataloader_test=None, 
     for epoch in range(epochs):
         total_correct = 0
         total_points = 0
-        for batch_idx, (data, target) in enumerate(dataloader):
+        for batch_idx, (data, target, _) in enumerate(dataloader):
             data, target = data.to(device), target.to(device)
             optimizer.zero_grad()
             if flatten:
@@ -128,7 +130,7 @@ def train_batched(model=None, epochs=30, dataloader=None, dataloader_test=None, 
     total_correct_test = 0
     total_points_test = 0
     model.eval()
-    for batch_idx, (data, target) in enumerate(dataloader_test):
+    for batch_idx, (data, target, _) in enumerate(dataloader_test):
         data, target = data.to(device), target.to(device)
         if flatten:
             data = data.reshape(-1, 3*28*28)
@@ -147,7 +149,7 @@ def train_batched_weighted(model=None, epochs=30, dataloader=None, dataloader_te
     for epoch in range(epochs):
         total_correct = 0
         total_points = 0
-        for batch_idx, (data, target) in enumerate(dataloader):
+        for batch_idx, (data, target, _) in enumerate(dataloader):
             data, target = data.to(device), target.to(device)
             optimizer.zero_grad()
             data = data.reshape(-1, 3*28*28)
@@ -163,7 +165,7 @@ def train_batched_weighted(model=None, epochs=30, dataloader=None, dataloader_te
     total_correct_test = 0
     total_points_test = 0
     model.eval()
-    for batch_idx, (data, target) in enumerate(dataloader_test):
+    for batch_idx, (data, target, _) in enumerate(dataloader_test):
         data, target = data.to(device), target.to(device)
         data = data.reshape(-1, 3*28*28)
         output = model(data)
@@ -179,12 +181,11 @@ def test_batched(model, dataloader_test):
     total_correct_test = 0
     total_points_test = 0
     model.eval()
-    for batch_idx, (data, target) in enumerate(dataloader_test):
+    for batch_idx, (data, target, _) in enumerate(dataloader_test):
         data, target = data.to(device), target.to(device)
         output = model(data).squeeze(1)
         out = output.argmax(axis=1)
         total_correct_test += sum(out == target)
         total_points_test += len(target)
     return (total_correct_test/total_points_test).cpu().item()
-
 

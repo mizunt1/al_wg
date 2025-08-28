@@ -4,6 +4,7 @@ import math
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
+import collections
 
 def cross_entropy_per_group(model, data_test):
     groups = np.unique(data_test['u_hat'])
@@ -88,7 +89,7 @@ def entropy_drop_out(model, x, transforms=None, num_classes=2, num_models=100):
 def cross_entropy(model, x, y):
     out = model(x)
     out = out.squeeze(1)
-    loss_fn = nn.CrossEntropyLoss()
+    loss_fn = nn.CrossEntropyLoss(reduce=None)
     loss = loss_fn(out, y)
     return loss.detach()
 
@@ -96,15 +97,61 @@ def calc_ent_batched(model, dataloader, num_models=100):
     total_ent = 0
     total_xent = 0
     use_cuda = True
+    num_points = 0
     device = torch.device("cuda" if use_cuda else "cpu")
     model.train()
     model.to(device)
-    for batch_idx, (data, target) in enumerate(dataloader):
+    for batch_idx, (data, target, group_idx) in enumerate(dataloader):
         data, target = data.to(device), target.to(device)
         #data = data.reshape(-1, 3*28*28)
-        total_ent += torch.mean(entropy_drop_out(model, data, num_models=num_models))
-        total_xent += cross_entropy(model, data, target)
-    return total_ent.cpu().item(), total_xent.cpu().item()
+        total_ent += sum(entropy_drop_out(model, data, num_models=num_models))
+        total_xent += torch.sum(cross_entropy(model, data, target))
+        num_points += len(target)
+    return (total_ent/num_points).cpu().item(), (total_xent/num_points).cpu().item()
+
+def calc_ent_per_group_batched(model, dataloader, num_groups, num_models=100):
+    total_ent = 0
+    total_xent = 0
+    use_cuda = True
+    device = torch.device("cuda" if use_cuda else "cpu")
+    model.train()
+    model.to(device)
+    ents = []
+    groups = []
+    group_ents = collections.defaultdict(float)
+    for batch_idx, (data, target, group_idx) in enumerate(dataloader):
+        data, target = data.to(device), target.to(device)
+        #data = data.reshape(-1, 3*28*28)
+        ent = entropy_drop_out(model, data, num_models=num_models)
+        ents.extend(ent.cpu().tolist())
+        groups.extend(group_idx.cpu().tolist())
+    for i in range(num_groups):
+        group_ent = np.array(ents) @ (np.array(groups)==i)
+        group_ents[i] = group_ent / (sum(np.array(groups)==i) + 1e-3)
+    return group_ents
+
+def test_batched_per_group(model, dataloader_test, num_groups):
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+    correct_array = []
+    group_array = []
+    group_acc = collections.defaultdict(float)
+    model.eval()
+    for batch_idx, (data, target, group_id) in enumerate(dataloader_test):
+        data, target = data.to(device), target.to(device)
+        output = model(data).squeeze(1)
+        out = output.argmax(axis=1)
+        correct_array.extend((out == target).tolist())
+        group_array.extend(group_id.tolist())
+    for i in range(num_groups):
+        group_accs = np.array(correct_array) @ (np.array(group_array)==i)
+        group_acc[i] = group_accs / (sum(np.array(group_array)==i) + 1e-3)
+    return group_acc
+
+def log_dict(start_log, to_append):
+    for key, value in to_append.items():
+        start_log[key].append(value)
+    return start_log
 
 def slurm_infos():
     return {
