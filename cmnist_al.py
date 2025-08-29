@@ -12,6 +12,7 @@ import wandb
 from tools import slurm_infos
 
 # to turn off wandb, export WANDB_MODE=disabled
+
 def main(seed, al_iters=10, al_size=100, num_epochs=150,
          acquisition='random', start_acquisition='random'):
     wandb.init(
@@ -172,4 +173,3 @@ if __name__ == "__main__":
 
     main(**vars(args))
     seed = 0
-    log = main(seed)
