@@ -7,13 +7,22 @@ from active_learning_data import ActiveLearningDataGroups
 from cmnist_ram import ColoredMNISTRAM, train_batched, test_batched
 from tools import calc_ent_batched, calc_ent_per_group_batched, plot_dictionary, log_dict
 from pprint import pprint
-from acquisitions import Random, UniformGroups, EntropyPerGroup, AccuracyPerGroup
+from acquisitions import Random, UniformGroups, EntropyPerGroup, AccuracyPerGroup, Entropy
+import wandb
+from tools import slurm_infos
 
-def main(seed):
+# to turn off wandb, export WANDB_MODE=disabled
+def main(seed, al_iters=10, al_size=100, num_epochs=150,
+         acquisition='random', start_acquisition='random'):
+    wandb.init(
+        project='al_wg',
+        settings=wandb.Settings(start_method='fork')
+    )
+    wandb.config.update(args)
+    wandb.run.summary.update(slurm_infos())
+
     np.random.seed(seed)
     torch.manual_seed(seed)
-    al_iters = 3
-    al_batch_size = 100
     use_cuda = True
     #log = {'train_acc':[], 'ent1': [], 'cross_ent_1': [],
     #       'ent2': [], 'cross_ent_2': [], 'test_acc':[],
@@ -25,13 +34,15 @@ def main(seed):
     ])
     # training datasets
     dataset1_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                     causal_noise=0.5,
+                                     causal_noise=0.0,
                                      transform=trans, start_idx=0, num_samples=5000, 
                                      flip_sp=False, group_idx=0)
     dataset2_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
                                      causal_noise=0.0,
                                      transform=trans, start_idx=5000, num_samples=1000, flip_sp=True, group_idx=1)
     data_train = [dataset1_train, dataset2_train]    
+    num_groups = len(data_train)
+    group_dict = {0:50, 1:50}
     dataset1_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                      causal_noise=0,
                                      transform=trans, start_idx=6000, num_samples=5000,
@@ -68,26 +79,23 @@ def main(seed):
                                                 batch_size=64, **kwargs)
 
     al_data = ActiveLearningDataGroups(data_train, dataset_test, 2)
-    num_epochs = 1
-    al_size = 50
-    group_dict = {0:25, 1:25}
-    num_groups = len(data_train)
-    acquisition = 'accuracy'
     method_map = {
         'random': Random,
         'uniform_groups': UniformGroups,
         'entropy_per_group': EntropyPerGroup,
-        'accuracy': AccuracyPerGroup}
+        'accuracy': AccuracyPerGroup,
+    'entropy': Entropy}
 
     kwargs_map = {'random': {'al_data': al_data, 'al_size': al_size},
                   'uniform_groups': {'al_data': al_data, 'group_proportions': group_dict},
                   'entropy_per_group': {'al_data': al_data, 'al_size': al_size},
+                  'entropy': {'al_data': al_data, 'al_size': al_size},
                   'accuracy': {'al_data': al_data, 'al_size': al_size}}
     # initial random acquisition to start with
-    start_acquisition = 'uniform_groups'
     acquisition_method = method_map[start_acquisition](**kwargs_map[start_acquisition])
     indices = acquisition_method.return_indices()
     al_data.acquire_with_indices(indices)
+
     if acquisition == 'accuracy':
         acquisition_method = method_map[acquisition](**kwargs_map[acquisition])
         # when using cross entropy based acquisition, we require 
@@ -95,9 +103,9 @@ def main(seed):
         model = BayesianNet(num_classes=2)
         dataloader_train, dataloader_test = al_data.get_train_and_test_loader(batch_size=64)
         # train model1 on first batch D1
-        proportion_correct_train, proportion_correct_test = train_batched(
+        proportion_correct_train, proportion_correct_test, group_dict_train = train_batched(
             model=model, dataloader=dataloader_train,
-            dataloader_test=dataloader_test, lr=0.001, epochs=num_epochs)
+            dataloader_test=dataloader_test, lr=0.001, epochs=num_epochs, num_groups=num_groups)
         # sample uniformly from groups again to get D2
         indices2 = acquisition_method.return_indices_random()
         al_data.acquire_with_indices(indices2)
@@ -115,19 +123,24 @@ def main(seed):
         np.random.seed(seed)
         torch.manual_seed(seed)
         model = BayesianNet(num_classes=2)
-        num_points = i*al_batch_size
+        num_points = i*al_size
         dataloader_train, dataloader_test = al_data.get_train_and_test_loader(batch_size=64)
-        proportion_correct_train, proportion_correct_test = train_batched(
+        proportion_correct_train, proportion_correct_test, group_dict_train = train_batched(
             model=model, dataloader=dataloader_train,
-            dataloader_test=dataloader_test, lr=0.001, epochs=num_epochs)
-        # acquisition of data            
-        # using model get info for acquisition 
+            dataloader_test=dataloader_test, lr=0.001, epochs=num_epochs, num_groups=num_groups)
+        # using model get info for acquisition function
+        print('dict groups in train', group_dict_train)
         if acquisition in ['random', 'uniform_groups']:
             pass
         elif acquisition == 'entropy_per_group':
             acquisition_method.information_for_acquisition(model, num_groups)
-        else:
+        elif acquisition == 'entropy':
+            acquisition_method.information_for_acquisition(model)
+        elif acquisition == 'accuracy':
             acquisition_method.information_for_acquisition(model, indices, num_groups, k=3)
+        else:
+            print('acquisition not recognised')
+        # acquire data
         indices = acquisition_method.return_indices()
         al_data.acquire_with_indices(indices)
         # compute metrics and logging
@@ -138,12 +151,25 @@ def main(seed):
         to_log = {'train_acc': proportion_correct_train, 'test_acc': proportion_correct_test,
                   'cross_ent_1': cross_ent1, 'cross_ent_2': cross_ent2,
                   'num points':num_points, 'ent1': ent1, 'ent2' :ent2,
-                  'causal acc':causal_correct, 'sp acc': sp_correct}
+                  'causal acc':causal_correct, 'sp acc': sp_correct,
+                  'g0 points': group_dict_train[0], 'g1 points': group_dict_train[1]}
+        wandb.log(to_log)
         pprint(to_log)
         log = log_dict(log, to_log)
     plot_dictionary(log)
     return log
 
 if __name__ == "__main__":
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--al_iters', type=int, default=10)
+    parser.add_argument('--al_size', type=int, default=100)
+    parser.add_argument('--num_epochs', type=int, default=150)
+    parser.add_argument('--acquisition', type=str, default='random')
+    
+    args = parser.parse_args()
+
+    main(**vars(args))
     seed = 0
     log = main(seed)

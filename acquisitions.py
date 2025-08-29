@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from tools import calc_ent_per_group_batched, test_batched_per_group
+from tools import calc_ent_per_group_batched, test_batched_per_group, calc_ent_per_point_batched
 
 class ActiveLearningAcquisitions(ABC):
     @abstractmethod
@@ -13,6 +13,9 @@ class Random(ActiveLearningAcquisitions):
     def __init__(self, al_data=None, al_size=None):
         self.al_data = al_data
         self.al_size = al_size
+    
+    def information_for_acquisition(self):
+        pass
 
     def return_indices(self):
         return self.al_data.get_random_available_indices(self.al_size)
@@ -71,3 +74,20 @@ class AccuracyPerGroup(ActiveLearningAcquisitions):
 
     def return_indices_random(self):
         return self.al_data.get_random_available_indices(self.al_size)
+
+class Entropy(ActiveLearningAcquisitions):
+    def __init__(self, al_data=None, al_size=None):
+        self.al_data = al_data
+        self.al_size = al_size
+        self.entropies = None
+        self.indexes = None
+
+    def information_for_acquisition(self, model):
+        pool_loader = self.al_data.get_pool_loader(64)
+        self.indexes = self.al_data.pool.indices
+        self.entropies = calc_ent_per_point_batched(model, pool_loader)
+
+    def return_indices(self):
+        sorted_by_ent = sorted(zip(self.entropies, self.indexes), reverse=True)
+        greatest_ent_points = [item[1] for item in sorted_by_ent[:self.al_size]]
+        return greatest_ent_points

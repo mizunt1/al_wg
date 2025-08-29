@@ -35,7 +35,7 @@ def sampling_proportions_entropy(entropy_0, entropy_1):
     return sampling_proportions
 
 def plot_dictionary(data):
-    num_plots = 7
+    num_plots = 9
     fig, axes = plt.subplots(num_plots, 1, figsize=(8, 3 * num_plots), sharex=True)
     
     axes[0].plot(data['ent1'], label='ent1')
@@ -69,6 +69,15 @@ def plot_dictionary(data):
     axes[6].plot(data['causal acc'], label='causal acc', color='black')
     axes[6].set_title('data with causal noise 0, sp noise max. accuracy')
     axes[6].grid(True)
+
+    axes[7].plot(data['g0 points'], color='black')
+    axes[7].set_title('num g0 points')
+    axes[7].grid(True)
+
+    axes[8].plot(data['g1 points'], color='black')
+    axes[8].set_title('num g1 points')
+    axes[8].grid(True)
+
 
     plt.tight_layout()
     plt.legend()
@@ -108,6 +117,20 @@ def calc_ent_batched(model, dataloader, num_models=100):
         total_xent += torch.sum(cross_entropy(model, data, target))
         num_points += len(target)
     return (total_ent/num_points).cpu().item(), (total_xent/num_points).cpu().item()
+
+def calc_ent_per_point_batched(model, dataloader, num_models=100):
+    use_cuda = True
+    num_points = 0
+    device = torch.device("cuda" if use_cuda else "cpu")
+    model.train()
+    model.to(device)
+    ents = []
+    for batch_idx, (data, target, group_idx) in enumerate(dataloader):
+        data, target = data.to(device), target.to(device)
+        #data = data.reshape(-1, 3*28*28)
+        out = entropy_drop_out(model, data, num_models=num_models)
+        ents.extend(out.tolist())
+    return ents
 
 def calc_ent_per_group_batched(model, dataloader, num_groups, num_models=100):
     total_ent = 0

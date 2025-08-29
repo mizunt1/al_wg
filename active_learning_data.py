@@ -72,11 +72,11 @@ class ActiveLearningDataGroups():
         available_indices = np.random.permutation(self.pool.indices)[:size]
         return available_indices
         
-    def get_pool_loader(self, batch_size):
+    def get_pool_loader(self, batch_size, shuffle=False):
         return DataLoader(self.pool, batch_size=batch_size,
                           num_workers=self.num_workers, pin_memory=True)
         
     def get_train_and_test_loader(self, batch_size):
         return (DataLoader(self.train, batch_size=batch_size,
-                           num_workers=self.num_workers, pin_memory=True),
+                           num_workers=self.num_workers, pin_memory=True, shuffle=True),
                 DataLoader(self.dataset_test, batch_size=batch_size, shuffle=True))

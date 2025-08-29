@@ -104,16 +104,19 @@ class ColoredMNISTRAM(datasets.VisionDataset):
             dataset.append((Image.fromarray(colored_arr), binary_label))
         self.data_label_tuples = dataset
 
-def train_batched(model=None, epochs=30, dataloader=None, dataloader_test=None, lr=0.001, flatten=False):
+def train_batched(model=None, epochs=30, dataloader=None,
+                  dataloader_test=None, lr=0.001, flatten=False, num_groups=2):
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     optimizer = optim.Adam(model.parameters(), lr=lr)
     model.train()
     model.to(device)
+    groups = []
+    group_dict = collections.defaultdict(int)
     for epoch in range(epochs):
         total_correct = 0
         total_points = 0
-        for batch_idx, (data, target, _) in enumerate(dataloader):
+        for batch_idx, (data, target, group_idx) in enumerate(dataloader):
             data, target = data.to(device), target.to(device)
             optimizer.zero_grad()
             if flatten:
@@ -127,6 +130,8 @@ def train_batched(model=None, epochs=30, dataloader=None, dataloader_test=None, 
             optimizer.step()
             total_correct += sum(out == target)
             total_points += len(target)
+            if epoch == 0:
+                groups.extend(group_idx)
     total_correct_test = 0
     total_points_test = 0
     model.eval()
@@ -138,7 +143,9 @@ def train_batched(model=None, epochs=30, dataloader=None, dataloader_test=None, 
         out = output.argmax(axis=1)
         total_correct_test += sum(out == target)
         total_points_test += len(target)
-    return (total_correct / total_points).cpu().item(), (total_correct_test/total_points_test).cpu().item()
+    for i in range(num_groups):
+        group_dict[i] = sum(np.array(groups) == i)
+    return (total_correct / total_points).cpu().item(), (total_correct_test/total_points_test).cpu().item(), group_dict
 
 def train_batched_weighted(model=None, epochs=30, dataloader=None, dataloader_test=None, lr=0.001):
     use_cuda = torch.cuda.is_available()
