@@ -44,6 +44,7 @@ class EntropyPerGroup(ActiveLearningAcquisitions):
         return normalised_ents
 
     def information_for_acquisition(self, model, num_groups):
+        
         group_proportions = self._ent_per_group_inverse(
             model, self.al_data.get_pool_loader(64), num_groups, self.al_size)
         self.group_proportions = group_proportions
@@ -61,8 +62,8 @@ class AccuracyPerGroup(ActiveLearningAcquisitions):
         dataloader_mini_test = self.al_data.create_dataloader_with_indices(data_to_test)
         group_accs = test_batched_per_group(model, dataloader_mini_test, num_groups)
         al_size_ = self.al_size - k*num_groups
-        accs = {key: 1/ value for key, value in group_accs.items()}
-        total_values = sum(accs.values())
+        accs = {key: 1/ (value + 1e-2) for key, value in group_accs.items()}
+        total_values = sum(accs.values()) 
         group_amounts = {key: int((value/total_values)*al_size_  + k) for key, value in accs.items()}
         return group_amounts
 

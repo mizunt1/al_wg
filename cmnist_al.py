@@ -12,10 +12,11 @@ import wandb
 from tools import slurm_infos
 
 # to turn off wandb, export WANDB_MODE=disabled
-def main(seed, al_iters=10, al_size=100, num_epochs=150,
-         acquisition='random', start_acquisition='random'):
+def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=150,
+         acquisition='random', data1_size=5000,
+         data2_size=1000, start_acquisition='uniform_groups', five_groups=False):
     wandb.init(
-        project='al_wg',
+        project=project_name,
         settings=wandb.Settings(start_method='fork')
     )
     wandb.config.update(args)
@@ -33,23 +34,54 @@ def main(seed, al_iters=10, al_size=100, num_epochs=150,
         transforms.ToTensor()
     ])
     # training datasets
-    dataset1_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                     causal_noise=0.0,
-                                     transform=trans, start_idx=0, num_samples=5000, 
-                                     flip_sp=False, group_idx=0)
-    dataset2_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                     causal_noise=0.0,
-                                     transform=trans, start_idx=5000, num_samples=1000, flip_sp=True, group_idx=1)
-    data_train = [dataset1_train, dataset2_train]    
+    if five_groups:        
+        dataset0_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
+                                         causal_noise=0.0,
+                                         transform=trans, start_idx=0, num_samples=data1_size, 
+                                         flip_sp=False, group_idx=0)
+        dataset1_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
+                                         causal_noise=0.0,
+                                         transform=trans, start_idx=5000, num_samples=data1_size, 
+                                         flip_sp=False, group_idx=1)
+        dataset2_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
+                                         causal_noise=0.0,
+                                         transform=trans, start_idx=10000, num_samples=data1_size, 
+                                         flip_sp=False, group_idx=2)
+        dataset3_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
+                                         causal_noise=0.0,
+                                         transform=trans, start_idx=15000, num_samples=data1_size, 
+                                         flip_sp=False, group_idx=3)
+        
+        dataset4_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
+                                         causal_noise=0.0,
+                                         transform=trans, start_idx=20000, num_samples=data2_size, flip_sp=True, group_idx=4) 
+        data_train = [dataset0_train, dataset1_train, dataset2_train, dataset3_train, dataset4_train]
+        group_to_log1 = 0
+        group_to_log2 = 4
+    else:
+        dataset0_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
+                                         causal_noise=0.0,
+                                         transform=trans, start_idx=0, num_samples=data1_size, 
+                                         flip_sp=False, group_idx=0)
+        dataset4_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
+                                         causal_noise=0.0,
+                                         transform=trans, start_idx=20000,
+                                         num_samples=data2_size, flip_sp=True, group_idx=1) 
+        data_train = [dataset0_train, dataset4_train]
+        group_to_log1 = 0
+        group_to_log2 = 1
+
     num_groups = len(data_train)
-    group_dict = {0:50, 1:50}
+    samples_per_group = int(al_size / num_groups)
+    
+    group_dict = {key: samples_per_group for key in range(num_groups)}
     dataset1_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                      causal_noise=0,
-                                     transform=trans, start_idx=6000, num_samples=5000,
+                                     transform=trans, start_idx=26000, num_samples=5000,
                                     flip_sp=False, group_idx=0)
     dataset2_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                      causal_noise=0,
-                                     transform=trans, start_idx=7000, num_samples=5000,
+                                     transform=trans, start_idx=27000, num_samples=5000,
                                       flip_sp=True, group_idx=1)
     dataloader1_unseen = torch.utils.data.DataLoader(dataset1_unseen,
                                                       batch_size=64, **kwargs)
@@ -91,7 +123,7 @@ def main(seed, al_iters=10, al_size=100, num_epochs=150,
                   'entropy_per_group': {'al_data': al_data, 'al_size': al_size},
                   'entropy': {'al_data': al_data, 'al_size': al_size},
                   'accuracy': {'al_data': al_data, 'al_size': al_size}}
-    # initial random acquisition to start with
+    # initial random or uniform acquisition to start with
     acquisition_method = method_map[start_acquisition](**kwargs_map[start_acquisition])
     indices = acquisition_method.return_indices()
     al_data.acquire_with_indices(indices)
@@ -152,7 +184,7 @@ def main(seed, al_iters=10, al_size=100, num_epochs=150,
                   'cross_ent_1': cross_ent1, 'cross_ent_2': cross_ent2,
                   'num points':num_points, 'ent1': ent1, 'ent2' :ent2,
                   'causal acc':causal_correct, 'sp acc': sp_correct,
-                  'g0 points': group_dict_train[0], 'g1 points': group_dict_train[1]}
+                  'g0 points': group_to_log1, 'g1 points': group_to_log2}
         wandb.log(to_log)
         pprint(to_log)
         log = log_dict(log, to_log)
@@ -165,11 +197,14 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--al_iters', type=int, default=10)
     parser.add_argument('--al_size', type=int, default=100)
+    parser.add_argument('--data1_size', type=int, default=5000)
+    parser.add_argument('--data2_size', type=int, default=1000)
     parser.add_argument('--num_epochs', type=int, default=150)
     parser.add_argument('--acquisition', type=str, default='random')
+    parser.add_argument('--start_acquisition', type=str, default='random')
+    parser.add_argument('--project_name', type=str, default='al_wg')
     
     args = parser.parse_args()
 
     main(**vars(args))
     seed = 0
-    log = main(seed)
