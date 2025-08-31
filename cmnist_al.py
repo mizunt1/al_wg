@@ -14,7 +14,7 @@ from tools import slurm_infos
 # to turn off wandb, export WANDB_MODE=disabled
 def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=150,
          acquisition='random', data1_size=5000,
-         data2_size=1000, start_acquisition='uniform_groups', five_groups=False):
+         data2_size=1000, start_acquisition='uniform_groups', data_mode='two_groups'):
     wandb.init(
         project=project_name,
         settings=wandb.Settings(start_method='fork')
@@ -34,7 +34,7 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         transforms.ToTensor()
     ])
     # training datasets
-    if five_groups:        
+    if data_mode == 'five_groups':        
         dataset0_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
                                          causal_noise=0.0,
                                          transform=trans, start_idx=0, num_samples=data1_size, 
@@ -58,7 +58,7 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         data_train = [dataset0_train, dataset1_train, dataset2_train, dataset3_train, dataset4_train]
         group_to_log1 = 0
         group_to_log2 = 4
-    else:
+    elif data_mode=='two_groups':
         dataset0_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
                                          causal_noise=0.0,
                                          transform=trans, start_idx=0, num_samples=data1_size,
@@ -70,7 +70,8 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         data_train = [dataset0_train, dataset4_train]
         group_to_log1 = 0
         group_to_log2 = 1
-
+    else:
+        print('data mode not recognised')
     num_groups = len(data_train)
     samples_per_group = int(al_size / num_groups)
     
@@ -204,6 +205,7 @@ if __name__ == "__main__":
     parser.add_argument('--acquisition', type=str, default='random')
     parser.add_argument('--start_acquisition', type=str, default='random')
     parser.add_argument('--project_name', type=str, default='al_wg')
+    parser.add_argument('--data_mode', type=str, default='two_groups')
     
     args = parser.parse_args()
 
