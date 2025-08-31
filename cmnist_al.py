@@ -61,7 +61,7 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
     else:
         dataset0_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
                                          causal_noise=0.0,
-                                         transform=trans, start_idx=0, num_samples=data1_size, 
+                                         transform=trans, start_idx=0, num_samples=data1_size,
                                          flip_sp=False, group_idx=0)
         dataset4_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
                                          causal_noise=0.0,
@@ -184,7 +184,8 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
                   'cross_ent_1': cross_ent1, 'cross_ent_2': cross_ent2,
                   'num points':num_points, 'ent1': ent1, 'ent2' :ent2,
                   'causal acc':causal_correct, 'sp acc': sp_correct,
-                  'g0 points': group_to_log1, 'g1 points': group_to_log2}
+                  'g0 points': group_dict_train[group_to_log1],
+                  'g1 points': group_dict_train[group_to_log2]}
         wandb.log(to_log)
         pprint(to_log)
         log = log_dict(log, to_log)
