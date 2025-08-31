@@ -155,8 +155,8 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         np.random.seed(seed)
         torch.manual_seed(seed)
         model = BayesianNet(num_classes=2)
-        num_points = i*al_size
         dataloader_train, dataloader_test = al_data.get_train_and_test_loader(batch_size=64)
+        num_points = len(al_data.train.indices)
         proportion_correct_train, proportion_correct_test, group_dict_train = train_batched(
             model=model, dataloader=dataloader_train,
             dataloader_test=dataloader_test, lr=0.001, epochs=num_epochs, num_groups=num_groups)

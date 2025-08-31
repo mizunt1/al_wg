@@ -58,13 +58,12 @@ class AccuracyPerGroup(ActiveLearningAcquisitions):
         self.al_size = al_size
         self.group_proportions = None
         
-    def _acc_per_group_inverse(self, model, data_to_test, num_groups, k=3):
+    def _acc_per_group_inverse(self, model, data_to_test, num_groups):
         dataloader_mini_test = self.al_data.create_dataloader_with_indices(data_to_test)
         group_accs = test_batched_per_group(model, dataloader_mini_test, num_groups)
-        al_size_ = self.al_size - k*num_groups
         accs = {key: 1/ (value + 1e-2) for key, value in group_accs.items()}
         total_values = sum(accs.values()) 
-        group_amounts = {key: int((value/total_values)*al_size_  + k) for key, value in accs.items()}
+        group_amounts = {key: int((value/total_values)*self.al_size) for key, value in accs.items()}
         return group_amounts
 
     def information_for_acquisition(self, model, data_to_test, num_groups, k=3):
