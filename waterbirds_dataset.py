@@ -156,9 +156,9 @@ class WaterbirdsDataset(WILDSDataset):
         results_str = f"Adjusted average acc: {results['adj_acc_avg']:.3f}\n" + '\n'.join(results_str.split('\n')[1:])
 
         return results, results_str
-
+    
 def train_batched(model=None, epochs=30, dataloader=None, dataloader_test=None,
-                  weight_decay=0.01, lr=0.001, flatten=False, wandb=None, label_wb='', gdro=False, num_groups=None):
+                  weight_decay=0.01, lr=0.001, flatten=False, label_wb='', gdro=False, num_groups=None):
     
     
     use_cuda = torch.cuda.is_available()
@@ -166,6 +166,8 @@ def train_batched(model=None, epochs=30, dataloader=None, dataloader_test=None,
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     model.train()
     model.to(device)
+    groups = []
+    group_dict = collections.defaultdict(int)
     for epoch in range(epochs):
         total_correct = 0
         total_points = 0
@@ -201,18 +203,15 @@ def train_batched(model=None, epochs=30, dataloader=None, dataloader_test=None,
             optimizer.step()
             total_correct += sum(out == target)
             total_points += len(target)
-        train_acc = (total_correct / total_points).cpu().item()
-        if wandb != None:
-            
-            if epoch % 10 == 0:
-                test_acc = test_batched(model, dataloader_test, device)
-                wandb.log({label_wb + 'test acc': test_acc})
-                wandb.log({label_wb + 'train acc': train_acc})
-    test_acc = test_batched(model, dataloader_test, device)
-    wandb.log({label_wb + 'test acc': test_acc})
-    wandb.log({label_wb + 'train acc': train_acc})
+            if epoch == 0:
+                groups.extend(pseudo_g)
 
-    return train_acc, test_acc
+    train_acc = (total_correct / total_points).cpu().item()
+    test_acc = test_batched(model, dataloader_test, device)
+    for i in range(num_groups):
+        group_dict[i] = sum(np.array(groups) == i)
+
+    return train_acc, test_acc, group_dict
 
 def test_batched(model, dataloader_test, device):
     total_correct_test = 0

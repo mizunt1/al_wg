@@ -2,14 +2,17 @@ from torchvision import transforms
 import numpy as np
 import collections
 import torch
-from models import BayesianNet
+from models import BayesianNet, resnet50
 from active_learning_data import ActiveLearningDataGroups
-from cmnist_ram import ColoredMNISTRAM, train_batched, test_batched
 from tools import calc_ent_batched, calc_ent_per_group_batched, plot_dictionary, log_dict
 from pprint import pprint
 from acquisitions import Random, UniformGroups, EntropyPerGroup, AccuracyPerGroup, Entropy
 import wandb
 from tools import slurm_infos
+from wilds import get_dataset
+from wilds.common.data_loaders import get_train_loader
+from waterbirds_dataset import WaterbirdsDataset, train_batched, test_batched, test_per_group
+
 
 # to turn off wandb, export WANDB_MODE=disabled
 def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=150,
@@ -34,84 +37,93 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         transforms.ToTensor()
     ])
     # training datasets
-    if data_mode == 'four_groups':        
-        dataset0_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                         causal_noise=0.0,
-                                         transform=trans, start_idx=0, num_samples=data1_size, 
-                                         flip_sp=False, group_idx=0)
-        dataset1_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                         causal_noise=0.0,
-                                         transform=trans, start_idx=5000, num_samples=data1_size, 
-                                         flip_sp=False, group_idx=1)
-        dataset2_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                         causal_noise=0.0,
-                                         transform=trans, start_idx=10000, num_samples=data1_size, 
-                                         flip_sp=False, group_idx=2)
-        dataset3_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                         causal_noise=0.0,
-                                         transform=trans, start_idx=15000, num_samples=data1_size, 
-                                         flip_sp=False, group_idx=3)
-        
-        dataset4_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                         causal_noise=0.0,
-                                         transform=trans, start_idx=20000, num_samples=data2_size, flip_sp=True, group_idx=4) 
-        data_train = [dataset0_train, dataset1_train, dataset2_train, dataset3_train, dataset4_train]
-        group_to_log1 = 0
-        group_to_log2 = 4
-    elif data_mode=='two_groups':
-        dataset0_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                         causal_noise=0.0,
-                                         transform=trans, start_idx=0, num_samples=data1_size,
-                                         flip_sp=False, group_idx=0)
-        dataset4_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                         causal_noise=0.0,
-                                         transform=trans, start_idx=20000,
-                                         num_samples=data2_size, flip_sp=True, group_idx=1) 
-        data_train = [dataset0_train, dataset4_train]
-        group_to_log1 = 0
-        group_to_log2 = 1
-    else:
-        print('data mode not recognised')
+    split_scheme = {"g0_train":10, "g1_train": 11,"g2_train": 12, "g3_train": 13,
+    "g0_test":20, "g1_test": 21,"g2_test": 22, "g3_test": 23, 'train':0, 'val':1, 'test':2}
+    split_names = {"g0_train":'g0_train', "g1_train": 'g1_train', "g2_train": 'g2_train',
+                   "g3_train": 'g3_train', "g0_test": 'g0_test',
+                   "g1_test": 'g1_test',"g2_test": 'g2_test',
+                   "g3_test": 'g3_test', 'train':'train', 'test':'test', 'val':'val'}
+
+    dataset = WaterbirdsDataset(version='1.0', root_dir='data/', download=True,
+                          split_scheme=split_scheme, split_names=split_names,
+                                metadata_name='metadata_5g_v2.csv')
+    training0_data = dataset.get_subset(
+        "g0_train",
+        transform=transforms.Compose(
+            [transforms.Resize((448, 448)), transforms.ToTensor()]
+        ),
+    )
+    training1_data = dataset.get_subset(
+        "g1_train",
+        transform=transforms.Compose(
+            [transforms.Resize((448, 448)), transforms.ToTensor()]
+        ),
+    )
+    training2_data = dataset.get_subset(
+        "g2_train",
+        transform=transforms.Compose(
+            [transforms.Resize((448, 448)), transforms.ToTensor()]
+        ),
+    )
+    training3_data = dataset.get_subset(
+        "g3_train",
+        transform=transforms.Compose(
+            [transforms.Resize((448, 448)), transforms.ToTensor()]
+        ),
+    )
+
+    test0_data = dataset.get_subset(
+        "g0_test",
+        transform=transforms.Compose(
+            [transforms.Resize((448, 448)), transforms.ToTensor()]
+        ),
+    )
+    test1_data = dataset.get_subset(
+        "g1_test",
+        transform=transforms.Compose(
+            [transforms.Resize((448, 448)), transforms.ToTensor()]
+        ),
+    )
+    test2_data = dataset.get_subset(
+        "g2_test",
+        transform=transforms.Compose(
+            [transforms.Resize((448, 448)), transforms.ToTensor()]
+        ),
+    )
+    test3_data = dataset.get_subset(
+        "g3_test",
+        transform=transforms.Compose(
+            [transforms.Resize((448, 448)), transforms.ToTensor()]
+        ),
+    )
+    dataset_val = dataset.get_subset(
+        "val",
+        transform=transforms.Compose(
+            [transforms.Resize((448, 448)), transforms.ToTensor()]
+        ),
+    )
+    group_to_log1 = 0
+    group_to_log2 = 3
+    training0_data.pseudo_group_label = 0
+    training1_data.pseudo_group_label = 1
+    training2_data.pseudo_group_label = 2
+    training3_data.pseudo_group_label = 3
+
+    data_train = [training0_data, training1_data, training2_data, training3_data]
     num_groups = len(data_train)
     samples_per_group = int(al_size / num_groups)
     
     group_dict = {key: samples_per_group for key in range(num_groups)}
-    dataset1_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
-                                     causal_noise=0,
-                                     transform=trans, start_idx=26000, num_samples=5000,
-                                    flip_sp=False, group_idx=0)
-    dataset2_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
-                                     causal_noise=0,
-                                     transform=trans, start_idx=27000, num_samples=5000,
-                                      flip_sp=True, group_idx=1)
+    dataset1_unseen = test0_data
+    dataset2_unseen = test3_data
+
     dataloader1_unseen = torch.utils.data.DataLoader(dataset1_unseen,
                                                       batch_size=64, **kwargs)
     dataloader2_unseen = torch.utils.data.DataLoader(dataset2_unseen,
                                                       batch_size=64, **kwargs)
-    dataset_test = ColoredMNISTRAM(root='./data',
-                                   train=False, spurious_noise=0.5, 
-                                   causal_noise=0.0,
-                                   transform=trans,
-                                   start_idx=0, 
-                                   num_samples=5000,
-                                   flip_sp=True)
-                                              
-    test_loader = torch.utils.data.DataLoader(dataset_test, batch_size=64, shuffle=True, **kwargs)
-    data_causal = ColoredMNISTRAM(root='./data', spurious_noise=0.5, 
-                                     causal_noise=0,
-                                     transform=trans, start_idx=8000, num_samples=5000, 
-                                     flip_sp=False)
-    data_sp = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                              causal_noise=0.5,
-                              transform=trans, start_idx=9000, 
-                              num_samples=500, flip_sp=False)
+    test_loader = torch.utils.data.DataLoader(dataset_val, batch_size=64, **kwargs)
 
-    dataloader_causal = torch.utils.data.DataLoader(data_causal,
-                                                    batch_size=64, **kwargs)
-    dataloader_sp = torch.utils.data.DataLoader(data_sp,
-                                                batch_size=64, **kwargs)
-
-    al_data = ActiveLearningDataGroups(data_train, dataset_test, 2)
+    al_data = ActiveLearningDataGroups(data_train, dataset_val, 2)
     method_map = {
         'random': Random,
         'uniform_groups': UniformGroups,
@@ -133,7 +145,7 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         # first we have training on random acquisiion
         # when using cross entropy based acquisition, we require 
         # two uniform group acquisitions
-        model = BayesianNet(num_classes=2)
+        model = resnet50(classes=2)
         dataloader_train, dataloader_test = al_data.get_train_and_test_loader(batch_size=64)
         # train model1 on first batch D1
         proportion_correct_train, proportion_correct_test, group_dict_train = train_batched(
@@ -141,12 +153,10 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
             dataloader_test=dataloader_test, lr=0.001, epochs=num_epochs, num_groups=num_groups)
         ent1, cross_ent1 = calc_ent_batched(model, dataloader1_unseen, num_models=100)
         ent2, cross_ent2 = calc_ent_batched(model, dataloader2_unseen, num_models=100)
-        causal_correct = test_batched(model, dataloader_causal)
-        sp_correct = test_batched(model, dataloader_sp)
+        num_points = len(al_data.train.indices)
         to_log = {'train_acc': proportion_correct_train, 'test_acc': proportion_correct_test,
                   'cross_ent_1': cross_ent1, 'cross_ent_2': cross_ent2,
                   'num points':num_points, 'ent1': ent1, 'ent2' :ent2,
-                  'causal acc':causal_correct, 'sp acc': sp_correct,
                   'g0 points': group_dict_train[group_to_log1],
                   'g1 points': group_dict_train[group_to_log2]}
         wandb.log(to_log)
@@ -195,12 +205,9 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         # compute metrics and logging
         ent1, cross_ent1 = calc_ent_batched(model, dataloader1_unseen, num_models=100)
         ent2, cross_ent2 = calc_ent_batched(model, dataloader2_unseen, num_models=100)
-        causal_correct = test_batched(model, dataloader_causal)
-        sp_correct = test_batched(model, dataloader_sp)
         to_log = {'train_acc': proportion_correct_train, 'test_acc': proportion_correct_test,
                   'cross_ent_1': cross_ent1, 'cross_ent_2': cross_ent2,
                   'num points':num_points, 'ent1': ent1, 'ent2' :ent2,
-                  'causal acc':causal_correct, 'sp acc': sp_correct,
                   'g0 points': group_dict_train[group_to_log1],
                   'g1 points': group_dict_train[group_to_log2]}
         wandb.log(to_log)

@@ -33,7 +33,7 @@ class WILDSDataset:
         x = self.get_input(idx)
         y = self.y_array[idx]
         metadata = self.metadata_array[idx]
-        return x, y, metadata, self.pseudo_group_label
+        return {'data': x, 'target': y, 'metadata': metadata, 'group_id': self.pseudo_group_label}
 
     def get_input(self, idx):
         """
