@@ -143,6 +143,7 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         ent2, cross_ent2 = calc_ent_batched(model, dataloader2_unseen, num_models=100)
         causal_correct = test_batched(model, dataloader_causal)
         sp_correct = test_batched(model, dataloader_sp)
+        num_points = len(al_data.train.indices)
         to_log = {'train_acc': proportion_correct_train, 'test_acc': proportion_correct_test,
                   'cross_ent_1': cross_ent1, 'cross_ent_2': cross_ent2,
                   'num points':num_points, 'ent1': ent1, 'ent2' :ent2,

@@ -77,7 +77,7 @@ class ColoredMNISTRAM(datasets.VisionDataset):
             target = self.target_transform(target)
         if self.add_digit != None:
             img[0,0] = self.add_digit
-        return img, target, self.group_idx
+        return {'data': img, 'target': target, 'group_id': self.group_idx}
 
     def __len__(self):
         return len(self.data_label_tuples)
@@ -116,7 +116,10 @@ def train_batched(model=None, epochs=30, dataloader=None,
     for epoch in range(epochs):
         total_correct = 0
         total_points = 0
-        for batch_idx, (data, target, group_idx) in enumerate(dataloader):
+        for batch_idx, out_dict in enumerate(dataloader):
+            data = out_dict['data']
+            target = out_dict['target']
+            group_id = out_dict['group_id']
             data, target = data.to(device), target.to(device)
             optimizer.zero_grad()
             if flatten:
@@ -131,11 +134,14 @@ def train_batched(model=None, epochs=30, dataloader=None,
             total_correct += sum(out == target)
             total_points += len(target)
             if epoch == 0:
-                groups.extend(group_idx)
+                groups.extend(group_id)
     total_correct_test = 0
     total_points_test = 0
     model.eval()
-    for batch_idx, (data, target, _) in enumerate(dataloader_test):
+    for batch_idx, out_dict in enumerate(dataloader_test):
+        data = out_dict['data']
+        target = out_dict['target']
+
         data, target = data.to(device), target.to(device)
         if flatten:
             data = data.reshape(-1, 3*28*28)
@@ -188,7 +194,10 @@ def test_batched(model, dataloader_test):
     total_correct_test = 0
     total_points_test = 0
     model.eval()
-    for batch_idx, (data, target, _) in enumerate(dataloader_test):
+    for batch_idx, out_dict in enumerate(dataloader_test):
+        data = out_dict['data']
+        target = out_dict['target']
+
         data, target = data.to(device), target.to(device)
         output = model(data).squeeze(1)
         out = output.argmax(axis=1)
