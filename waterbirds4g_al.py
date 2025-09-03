@@ -34,7 +34,7 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         transforms.ToTensor()
     ])
     # training datasets
-    if data_mode == 'five_groups':        
+    if data_mode == 'four_groups':        
         dataset0_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
                                          causal_noise=0.0,
                                          transform=trans, start_idx=0, num_samples=data1_size, 
