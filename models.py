@@ -80,6 +80,40 @@ class BayesianNet(mc_dropout.BayesianModule):
         input = F.log_softmax(input, dim=1)
         return input
 
+class BayesianNetRes50(mc_dropout.BayesianModule):
+    # https://github.com/BlackHC/BatchBALD/blob/master/src/mnist_model.py
+    def __init__(self, num_classes):
+        super().__init__(num_classes)
+        self.model = torchvision.models.resnet50(pretrained=True)
+        self.fc1_drop = mc_dropout.MCDropout()
+        for param in self.model.parameters():
+            param.requires_grad = False
+            d = self.model.fc.in_features
+            self.model.fc = nn.Linear(d, num_classes)
+
+    def _forward_impl(self, x):
+        # See note [TorchScript super()]
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+
+        x = self.fc1_drop(self.fc(x))
+
+        return x
+
+    def mc_forward_impl(self, input):
+        input = self.model(input)
+        return input
+
 class Linear(nn.Module):
     def __init__(self, input_size, classes=4):
         super(Linear, self).__init__()

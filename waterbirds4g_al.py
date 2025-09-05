@@ -2,7 +2,7 @@ from torchvision import transforms
 import numpy as np
 import collections
 import torch
-from models import BayesianNet, resnet50
+from models import BayesianNet, resnet50, BayesianNetRes50
 from active_learning_data import ActiveLearningDataGroups
 from tools import calc_ent_batched, calc_ent_per_group_batched, plot_dictionary, log_dict
 from pprint import pprint
@@ -181,7 +181,7 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         acquisition_method = method_map[acquisition](**kwargs_map[acquisition])
         np.random.seed(seed)
         torch.manual_seed(seed)
-        model = BayesianNet(num_classes=2)
+        model = BayesianNetRes50(num_classes=2)
         dataloader_train, dataloader_test = al_data.get_train_and_test_loader(batch_size=64)
         num_points = len(al_data.train.indices)
         proportion_correct_train, proportion_correct_test, group_dict_train = train_batched(

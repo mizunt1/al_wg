@@ -172,7 +172,10 @@ def test_batched_per_group(model, dataloader_test, num_groups):
     group_array = []
     group_acc = collections.defaultdict(float)
     model.eval()
-    for batch_idx, (data, target, group_id) in enumerate(dataloader_test):
+    for batch_idx, out_dict in enumerate(dataloader_test):
+        data = out_dict['data']
+        target = out_dict['target']
+        group_id = out_dict['group_id']
         data, target = data.to(device), target.to(device)
         output = model(data).squeeze(1)
         out = output.argmax(axis=1)

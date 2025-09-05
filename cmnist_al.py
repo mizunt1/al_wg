@@ -10,11 +10,13 @@ from pprint import pprint
 from acquisitions import Random, UniformGroups, EntropyPerGroup, AccuracyPerGroup, Entropy
 import wandb
 from tools import slurm_infos
+from create_datasets import two_groups_cmnist, five_groups_cmnist, ten_groups_cmnist,ten_groups_cmnist_multiple_int
 
 # to turn off wandb, export WANDB_MODE=disabled
 def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=150,
          acquisition='random', data1_size=5000,
-         data2_size=1000, start_acquisition='uniform_groups', data_mode='two_groups'):
+         data2_size=1000, start_acquisition='uniform_groups',
+         data_mode='two_groups', causal_noise=0, spurious_noise=0):
     wandb.init(
         project=project_name,
         settings=wandb.Settings(start_method='fork')
@@ -35,55 +37,43 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
     ])
     # training datasets
     if data_mode == 'five_groups':        
-        dataset0_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                         causal_noise=0.0,
-                                         transform=trans, start_idx=0, num_samples=data1_size, 
-                                         flip_sp=False, group_idx=0)
-        dataset1_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                         causal_noise=0.0,
-                                         transform=trans, start_idx=5000, num_samples=data1_size, 
-                                         flip_sp=False, group_idx=1)
-        dataset2_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                         causal_noise=0.0,
-                                         transform=trans, start_idx=10000, num_samples=data1_size, 
-                                         flip_sp=False, group_idx=2)
-        dataset3_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                         causal_noise=0.0,
-                                         transform=trans, start_idx=15000, num_samples=data1_size, 
-                                         flip_sp=False, group_idx=3)
-        
-        dataset4_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                         causal_noise=0.0,
-                                         transform=trans, start_idx=20000, num_samples=data2_size, flip_sp=True, group_idx=4) 
-        data_train = [dataset0_train, dataset1_train, dataset2_train, dataset3_train, dataset4_train]
+        data_train, start_idx = five_groups_cmnist(spurious_noise, causal_noise, data1_size, data2_size, trans)
         group_to_log1 = 0
         group_to_log2 = 4
     elif data_mode=='two_groups':
-        dataset0_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                         causal_noise=0.0,
-                                         transform=trans, start_idx=0, num_samples=data1_size,
-                                         flip_sp=False, group_idx=0)
-        dataset4_train = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
-                                         causal_noise=0.0,
-                                         transform=trans, start_idx=20000,
-                                         num_samples=data2_size, flip_sp=True, group_idx=1) 
-        data_train = [dataset0_train, dataset4_train]
+        data_train, start_idx = two_groups_cmnist(spurious_noise, causal_noise,data1_size, data2_size, trans)
         group_to_log1 = 0
         group_to_log2 = 1
+    elif data_mode == 'ten_groups':
+        data_train, start_idx = ten_groups_cmnist(spurious_noise, causal_noise,data1_size, data2_size, trans)
+        group_to_log1 = 0
+        group_to_log2 = 9
+    elif data_mode == 'ten_groups_multiple_int':
+        data_train, start_idx = ten_groups_cmnist_multiple_int(spurious_noise,
+                                                               causal_noise,
+                                                               data1_size,
+                                                               data2_size,
+                                                               trans)
+        group_to_log1 = 0
+        group_to_log2 = 9
+
     else:
         print('data mode not recognised')
+
     num_groups = len(data_train)
     samples_per_group = int(al_size / num_groups)
     
     group_dict = {key: samples_per_group for key in range(num_groups)}
     dataset1_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                      causal_noise=0,
-                                     transform=trans, start_idx=26000, num_samples=5000,
+                                     transform=trans, start_idx=start_idx, num_samples=5000,
                                     flip_sp=False, group_idx=0)
+    start_idx += 5000
     dataset2_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                      causal_noise=0,
-                                     transform=trans, start_idx=27000, num_samples=5000,
+                                     transform=trans, start_idx=start_idx, num_samples=5000,
                                       flip_sp=True, group_idx=1)
+    start_idx += 5000
     dataloader1_unseen = torch.utils.data.DataLoader(dataset1_unseen,
                                                       batch_size=64, **kwargs)
     dataloader2_unseen = torch.utils.data.DataLoader(dataset2_unseen,
@@ -95,16 +85,15 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
                                    start_idx=0, 
                                    num_samples=5000,
                                    flip_sp=True)
-                                              
     test_loader = torch.utils.data.DataLoader(dataset_test, batch_size=64, shuffle=True, **kwargs)
-    data_causal = ColoredMNISTRAM(root='./data', spurious_noise=0.5, 
+    data_causal = ColoredMNISTRAM(root='./data', train=False, spurious_noise=0.5, 
                                      causal_noise=0,
-                                     transform=trans, start_idx=8000, num_samples=5000, 
+                                     transform=trans, start_idx=5000, num_samples=2000, 
                                      flip_sp=False)
-    data_sp = ColoredMNISTRAM(root='./data', spurious_noise=0.0, 
+    data_sp = ColoredMNISTRAM(root='./data', train=False, spurious_noise=0.0, 
                               causal_noise=0.5,
-                              transform=trans, start_idx=9000, 
-                              num_samples=500, flip_sp=False)
+                              transform=trans, start_idx=7000, 
+                              num_samples=2000, flip_sp=False)
 
     dataloader_causal = torch.utils.data.DataLoader(data_causal,
                                                     batch_size=64, **kwargs)
@@ -138,7 +127,8 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         # train model1 on first batch D1
         proportion_correct_train, proportion_correct_test, group_dict_train = train_batched(
             model=model, dataloader=dataloader_train,
-            dataloader_test=dataloader_test, lr=0.001, epochs=num_epochs, num_groups=num_groups)
+            dataloader_test=dataloader_test, lr=0.001,
+            epochs=num_epochs, num_groups=num_groups)
         ent1, cross_ent1 = calc_ent_batched(model, dataloader1_unseen, num_models=100)
         ent2, cross_ent2 = calc_ent_batched(model, dataloader2_unseen, num_models=100)
         causal_correct = test_batched(model, dataloader_causal)
@@ -223,6 +213,8 @@ if __name__ == "__main__":
     parser.add_argument('--start_acquisition', type=str, default='random')
     parser.add_argument('--project_name', type=str, default='al_wg')
     parser.add_argument('--data_mode', type=str, default='two_groups')
+    parser.add_argument('--causal_noise', type=float, default=0)
+    parser.add_argument('--spurious_noise', type=float, default=0)
     
     args = parser.parse_args()
 
