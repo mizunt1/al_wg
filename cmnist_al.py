@@ -7,15 +7,16 @@ from active_learning_data import ActiveLearningDataGroups
 from cmnist_ram import ColoredMNISTRAM, train_batched, test_batched
 from tools import calc_ent_batched, calc_ent_per_group_batched, plot_dictionary, log_dict
 from pprint import pprint
-from acquisitions import Random, UniformGroups, EntropyPerGroup, AccuracyPerGroup, Entropy
+from acquisitions import (Random, UniformGroups,
+                          EntropyPerGroup, AccuracyPerGroup, Entropy, EntropyUniformGroups)
 import wandb
 from tools import slurm_infos
-from create_datasets import two_groups_cmnist, five_groups_cmnist, ten_groups_cmnist,ten_groups_cmnist_multiple_int
+from create_datasets import two_groups_cmnist, five_groups_cmnist, ten_groups_cmnist,ten_groups_cmnist_multiple_int, yxm_groups_cmnist
 
 # to turn off wandb, export WANDB_MODE=disabled
 def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=150,
          acquisition='random', data1_size=5000,
-         data2_size=1000, start_acquisition='uniform_groups',
+         data2_size=1000, start_acquisition='random',
          data_mode='two_groups', causal_noise=0, spurious_noise=0):
     wandb.init(
         project=project_name,
@@ -36,7 +37,11 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         transforms.ToTensor()
     ])
     # training datasets
-    if data_mode == 'five_groups':        
+    if data_mode == 'yxm_groups':
+        data_train, start_idx = yxm_groups_cmnist(trans)
+        group_to_log1 = 0
+        group_to_log2 = 1
+    elif data_mode == 'five_groups':        
         data_train, start_idx = five_groups_cmnist(spurious_noise, causal_noise, data1_size, data2_size, trans)
         group_to_log1 = 0
         group_to_log2 = 4
@@ -106,13 +111,16 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         'uniform_groups': UniformGroups,
         'entropy_per_group': EntropyPerGroup,
         'accuracy': AccuracyPerGroup,
-    'entropy': Entropy}
+        'entropy': Entropy,
+        'entropy_uniform_groups': EntropyUniformGroups}
 
     kwargs_map = {'random': {'al_data': al_data, 'al_size': al_size},
                   'uniform_groups': {'al_data': al_data, 'group_proportions': group_dict},
                   'entropy_per_group': {'al_data': al_data, 'al_size': al_size},
                   'entropy': {'al_data': al_data, 'al_size': al_size},
-                  'accuracy': {'al_data': al_data, 'al_size': al_size}}
+                  'accuracy': {'al_data': al_data, 'al_size': al_size},
+                  'entropy_uniform_groups':{'al_data': al_data, 'al_size': al_size}}
+    
     # initial random or uniform acquisition to start with
     acquisition_method = method_map[start_acquisition](**kwargs_map[start_acquisition])
     indices = acquisition_method.return_indices()
@@ -178,6 +186,8 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
             acquisition_method.information_for_acquisition(model)
         elif acquisition == 'accuracy':
             acquisition_method.information_for_acquisition(model, indices, num_groups, k=3)
+        elif acquisition == 'entropy_uniform_groups':
+            acquisition_method.information_for_acquisition(model, num_groups)
         else:
             print('acquisition not recognised')
         # acquire data

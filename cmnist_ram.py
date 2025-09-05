@@ -46,9 +46,10 @@ class ColoredMNISTRAM(datasets.VisionDataset):
         target_transform (callable, optional): A function/transform that takes in the
         target and transforms it.
     """
-    def __init__(self, spurious_noise=None, causal_noise=None, train=True,
+    def __init__(self, spurious_noise=0, causal_noise=0, train=True,
                  transform=None, num_samples=5000, start_idx=0,
-                 add_digit=None, flip_sp=False, fiif=False, root='./data', group_idx=-1):
+                 add_digit=None, flip_sp=False, fiif=False, root='./data',
+                 group_idx=-1, specified_class=None):
         super(ColoredMNISTRAM, self).__init__(root, 
                                               transform=transform)
         self.start_idx = start_idx
@@ -58,10 +59,11 @@ class ColoredMNISTRAM(datasets.VisionDataset):
         self.spurious_noise = spurious_noise
         self.train = train
         self.fiif = fiif
+        self.specified_class = specified_class
         self.prepare_colored_mnist()
         self.add_digit = add_digit
         self.group_idx = group_idx
-
+        
     def __getitem__(self, index):
         """
         Args:
@@ -102,7 +104,10 @@ class ColoredMNISTRAM(datasets.VisionDataset):
                 color_red = not color_red
             colored_arr = color_grayscale_arr(im_array, red=color_red, flip_colours=self.flip_sp)
             dataset.append((Image.fromarray(colored_arr), binary_label))
-        self.data_label_tuples = dataset
+        if self.specified_class != None:
+            self.data_label_tuples = [data for data in dataset if data[1] == self.specified_class]
+        else:
+            self.data_label_tuples = dataset
 
 def train_batched(model=None, epochs=30, dataloader=None,
                   dataloader_test=None, lr=0.001, flatten=False, num_groups=2):

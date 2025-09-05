@@ -80,14 +80,44 @@ class Entropy(ActiveLearningAcquisitions):
         self.al_data = al_data
         self.al_size = al_size
         self.entropies = None
-        self.indexes = None
+        self.indices = None
 
     def information_for_acquisition(self, model):
         pool_loader = self.al_data.get_pool_loader(64)
-        self.indexes = self.al_data.pool.indices
+        self.indices = self.al_data.pool.indices
         self.entropies = calc_ent_per_point_batched(model, pool_loader)
 
     def return_indices(self):
-        sorted_by_ent = sorted(zip(self.entropies, self.indexes), reverse=True)
+        sorted_by_ent = sorted(zip(self.entropies, self.indices), reverse=True)
         greatest_ent_points = [item[1] for item in sorted_by_ent[:self.al_size]]
         return greatest_ent_points
+
+class EntropyUniformGroups(ActiveLearningAcquisitions):
+    def __init__(self, al_data=None, al_size=None):
+        self.al_data = al_data
+        self.al_size = al_size
+        self.entropies = None
+        self.indices = None
+        self.group_proportions = None
+        
+    def _ent_per_group_inverse(self, model, dataloader, num_groups, al_size):
+        group_ents = calc_ent_per_group_batched(model, dataloader, num_groups)
+        total_ent = sum(group_ents.values())
+        normalised_ents = {key: int((value/total_ent)*al_size) for key, value in group_ents.items()}
+        return normalised_ents
+
+    def information_for_acquisition(self, model, num_groups):
+        self.group_proportions = self._ent_per_group_inverse(
+            model, self.al_data.get_pool_loader(64), num_groups, self.al_size)
+        # calculate group sampling proportions
+        pool_loader = self.al_data.get_pool_loader(64)
+        self.indices = self.al_data.pool.indices
+        self.entropies = calc_ent_per_point_batched(model, pool_loader)
+        
+    def return_indices(self):
+        final_indices = []
+        sorted_by_ent = sorted(zip(self.entropies, self.indices), reverse=True)
+        for group_id, num_points_per_g in self.group_proportions.items():
+            sorted_by_ent_one_group = [ind for ent, ind in sorted_by_ent if ind < self.al_data.group_idx[group_id+1] and ind > self.al_data.group_idx[group_id]][:num_points_per_g]
+            final_indices.extend(sorted_by_ent_one_group)
+        return final_indices
