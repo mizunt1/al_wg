@@ -1,4 +1,5 @@
 from torchvision import transforms
+import random
 import numpy as np
 import collections
 import torch
@@ -11,7 +12,7 @@ from acquisitions import (Random, UniformGroups,
                           EntropyPerGroup, AccuracyPerGroup, Entropy, EntropyUniformGroups)
 import wandb
 from tools import slurm_infos
-from create_datasets import two_groups_cmnist, five_groups_cmnist, ten_groups_cmnist,ten_groups_cmnist_multiple_int, yxm_groups_cmnist
+from create_datasets import two_groups_cmnist, five_groups_cmnist, ten_groups_cmnist,ten_groups_cmnist_multiple_int, yxm_groups_cmnist, groups_to_env
 
 # to turn off wandb, export WANDB_MODE=disabled
 def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=150,
@@ -27,6 +28,7 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
 
     np.random.seed(seed)
     torch.manual_seed(seed)
+    random.seed(seed)
     use_cuda = True
     #log = {'train_acc':[], 'ent1': [], 'cross_ent_1': [],
     #       'ent2': [], 'cross_ent_2': [], 'test_acc':[],
@@ -39,6 +41,10 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
     # training datasets
     if data_mode == 'yxm_groups':
         data_train, start_idx = yxm_groups_cmnist(trans)
+        group_to_log1 = 0
+        group_to_log2 = 1
+    elif data_mode == 'groups_to_env':
+        data_train, start_idx = groups_to_env(trans)
         group_to_log1 = 0
         group_to_log2 = 1
     elif data_mode == 'five_groups':        
@@ -89,7 +95,7 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
                                    transform=trans,
                                    start_idx=0, 
                                    num_samples=5000,
-                                   flip_sp=True)
+                                   flip_sp=False)
     test_loader = torch.utils.data.DataLoader(dataset_test, batch_size=64, shuffle=True, **kwargs)
     data_causal = ColoredMNISTRAM(root='./data', train=False, spurious_noise=0.5, 
                                      causal_noise=0,
@@ -119,7 +125,8 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
                   'entropy_per_group': {'al_data': al_data, 'al_size': al_size},
                   'entropy': {'al_data': al_data, 'al_size': al_size},
                   'accuracy': {'al_data': al_data, 'al_size': al_size},
-                  'entropy_uniform_groups':{'al_data': al_data, 'al_size': al_size}}
+                  'entropy_uniform_groups':{'al_data': al_data, 'al_size': al_size,
+                                            'group_proportions': group_dict}}
     
     # initial random or uniform acquisition to start with
     acquisition_method = method_map[start_acquisition](**kwargs_map[start_acquisition])

@@ -93,22 +93,15 @@ class Entropy(ActiveLearningAcquisitions):
         return greatest_ent_points
 
 class EntropyUniformGroups(ActiveLearningAcquisitions):
-    def __init__(self, al_data=None, al_size=None):
+    def __init__(self, al_data=None, al_size=None,
+                 group_proportions=None):
         self.al_data = al_data
         self.al_size = al_size
         self.entropies = None
         self.indices = None
-        self.group_proportions = None
+        self.group_proportions = group_proportions
         
-    def _ent_per_group_inverse(self, model, dataloader, num_groups, al_size):
-        group_ents = calc_ent_per_group_batched(model, dataloader, num_groups)
-        total_ent = sum(group_ents.values())
-        normalised_ents = {key: int((value/total_ent)*al_size) for key, value in group_ents.items()}
-        return normalised_ents
-
     def information_for_acquisition(self, model, num_groups):
-        self.group_proportions = self._ent_per_group_inverse(
-            model, self.al_data.get_pool_loader(64), num_groups, self.al_size)
         # calculate group sampling proportions
         pool_loader = self.al_data.get_pool_loader(64)
         self.indices = self.al_data.pool.indices
