@@ -15,4 +15,4 @@ N_METHODS=${#METHODS[@]}
 N_SEEDS=5
 SEED=$(( SLURM_ARRAY_TASK_ID % N_SEEDS))
 METHOD_IDX=$(( (SLURM_ARRAY_TASK_ID / N_SEEDS) % N_METHODS ))
-python cmnist_al.py --project_name ten_groups_mult_int --seed $SEED --data_mode ten_groups_multiple_int --al_size 100 --acquisition ${METHODS[$METHOD_IDX]}  --start_acquisition random --causal_noise 0.0 --spurious_noise 0.0 
+python cmnist_al.py --project_name groups_to_env --seed $SEED --data_mode groups_to_env --al_size 30 --acquisition ${METHODS[$METHOD_IDX]}  --start_acquisition random --causal_noise 0.0 --spurious_noise 0.0 

@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 class ActiveLearningDataGroups():
-    def __init__(self, datasets, dataset_test, num_workers=4):
+    def __init__(self, datasets, dataset_test, num_workers=4, batch_size=64):
         self.datasets = datasets
         self.dataset = torch.utils.data.ConcatDataset(self.datasets)
         self.dataset_test = dataset_test
@@ -20,7 +20,7 @@ class ActiveLearningDataGroups():
         self.num_workers = num_workers
         self._update_indices()
         self._create_group_indices()
-
+        self.batch_size = batch_size
     def _update_indices(self):
         self.pool.indices = np.nonzero(self.pool_mask)[0]
         self.train.indices = np.nonzero(self.train_mask)[0]
@@ -55,7 +55,9 @@ class ActiveLearningDataGroups():
     
     def get_indices_one_group(self, group=0, size=10):
         # pool indices from that group
-        available_from_group = self.pool.indices[self.group_idx[group]: self.group_idx[group+1]]
+        indexes_for_group = [i for i in range(self.group_idx[group], self.group_idx[group+1])]
+        indexes_in_pool = self.pool.indices
+        available_from_group = list(set(indexes_for_group).intersection(set(indexes_in_pool)))
         assert size <= len(available_from_group)
         available_indices = np.random.permutation(available_from_group)[:size]
         return available_indices
@@ -73,10 +75,10 @@ class ActiveLearningDataGroups():
         return available_indices
         
     def get_pool_loader(self, batch_size, shuffle=False):
-        return DataLoader(self.pool, batch_size=batch_size,
+        return DataLoader(self.pool, batch_size=self.batch_size,
                           num_workers=self.num_workers, pin_memory=True)
         
     def get_train_and_test_loader(self, batch_size):
-        return (DataLoader(self.train, batch_size=batch_size,
+        return (DataLoader(self.train, batch_size=self.batch_size,
                            num_workers=self.num_workers, pin_memory=True, shuffle=True),
                 DataLoader(self.dataset_test, batch_size=batch_size, shuffle=True))
