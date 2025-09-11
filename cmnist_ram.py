@@ -9,7 +9,7 @@ from torch.utils.data import Subset
 import torch.optim as optim
 import collections
 
-def color_grayscale_arr(arr, red=True, flip_colours=True):
+def color_grayscale_arr(arr, red=True):
     """Converts grayscale image to either red or green"""
     assert arr.ndim == 2
     dtype = arr.dtype
@@ -41,7 +41,7 @@ class ColoredMNISTRAM(datasets.VisionDataset):
     """
     def __init__(self, spurious_noise=0, causal_noise=0, train=True,
                  transform=None, num_samples=5000, start_idx=0,
-                 add_digit=None, flip_sp=False, fiif=False, root='./data',
+                 add_digit=None, fiif=False, root='./data',
                  group_idx=-1, specified_class=None, red=1):
         super(ColoredMNISTRAM, self).__init__(root, 
                                               transform=transform)
@@ -79,9 +79,9 @@ class ColoredMNISTRAM(datasets.VisionDataset):
 
     def prepare_colored_mnist(self):
         train_mnist = datasets.mnist.MNIST(self.root, train=self.train, download=True)
-        train_mnist = Subset(train_mnist, [i for i in range(self.start_idx, self.start_idx + self.num_samples)])
+        train_mnist = Subset(
+            train_mnist, [i for i in range(self.start_idx, self.start_idx + self.num_samples)])
         dataset = []
-
         for idx, (im, label) in enumerate(train_mnist):
             im_array = np.array(im)
             # Assign a binary label y to the image based on the digit
@@ -92,7 +92,7 @@ class ColoredMNISTRAM(datasets.VisionDataset):
             if not self.fiif:
                 # if partially informative, the colour is downstream of 
                 # noisy label
-                color_red = binary_label == 0
+                color_red = binary_label == self.red
             if np.random.uniform() < self.spurious_noise:
                 color_red = not color_red
             colored_arr = color_grayscale_arr(im_array, red=color_red,)
