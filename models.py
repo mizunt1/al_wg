@@ -14,6 +14,11 @@ def resnet50(classes=2, drop_out=0.0):
     model.fc = nn.Linear(d, classes)
     return model
 
+def resnet50_rep():
+    model = torchvision.models.resnet50(pretrained=True)
+    return model
+
+
 def resnet50_plus(classes=2, drop_out=0.0):
     model = torchvision.models.resnet50(pretrained=True)
     for param in model.parameters():
@@ -80,6 +85,20 @@ class BayesianNet(mc_dropout.BayesianModule):
         input = F.log_softmax(input, dim=1)
         return input
 
+class BayesianNetFc(mc_dropout.BayesianModule):
+    def __init__(self, num_classes):
+        super().__init__(num_classes)
+        self.batchnorm = nn.BatchNorm1d(1000, affine=False)
+        self.fc1 = nn.Linear(1000, 128)
+        self.fc1_drop = mc_dropout.MCDropout()
+        self.fc2 = nn.Linear(128, num_classes)
+
+    def mc_forward_impl(self, input):
+        input = self.batchnorm(input)
+        input = F.relu(self.fc1_drop(self.fc1(input)))
+        input = self.fc2(input)
+        return input
+
 class BayesianNetRes50(mc_dropout.BayesianModule):
     # https://github.com/BlackHC/BatchBALD/blob/master/src/mnist_model.py
     def __init__(self, num_classes):
@@ -104,13 +123,15 @@ class BayesianNetRes50(mc_dropout.BayesianModule):
         return input
 
 class Linear(nn.Module):
-    def __init__(self, input_size, classes=4):
+    def __init__(self, input_size, classes=2):
         super(Linear, self).__init__()
-        self.layer = nn.Linear(input_size, 10)
-        self.layer2 = nn.Linear(10, classes)
+        self.batchnorm = nn.BatchNorm1d(input_size, affine=False)
+        self.layer = nn.Linear(input_size, 100)
+        self.layer2 = nn.Linear(100, classes)
 
     def forward(self, input):
-        out = self.layer(input)
+        out = self.batchnorm(input)
+        out = self.layer(out)
         out = F.relu(out)
         out = self.layer2(out)
         return out

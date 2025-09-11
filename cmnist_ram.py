@@ -15,22 +15,15 @@ def color_grayscale_arr(arr, red=True, flip_colours=True):
     dtype = arr.dtype
     h, w = arr.shape
     arr = np.reshape(arr, [h, w, 1])
-    if flip_colours:
-        if red:
-            arr = np.concatenate([arr,
-                                  np.zeros((h, w, 2), dtype=dtype)], axis=2)
-        else:
-            arr = np.concatenate([np.zeros((h, w, 1), dtype=dtype),
-                                  arr,
-                                  np.zeros((h, w, 1), dtype=dtype)], axis=2)
+    if red:
+        # red appears in first channel
+        arr = np.concatenate([arr,
+                              np.zeros((h, w, 2), dtype=dtype)], axis=2)
     else:
-        if red:
-            arr = np.concatenate([np.zeros((h, w, 1), dtype=dtype),
-                                  arr,
-                                  np.zeros((h, w, 1), dtype=dtype)], axis=2)
-        else:
-            arr = np.concatenate([arr,
-                                  np.zeros((h, w, 2), dtype=dtype)], axis=2)
+        # green appears in second channel
+        arr = np.concatenate([np.zeros((h, w, 1), dtype=dtype),
+                              arr,
+                              np.zeros((h, w, 1), dtype=dtype)], axis=2)
     return arr
 
 
@@ -49,12 +42,12 @@ class ColoredMNISTRAM(datasets.VisionDataset):
     def __init__(self, spurious_noise=0, causal_noise=0, train=True,
                  transform=None, num_samples=5000, start_idx=0,
                  add_digit=None, flip_sp=False, fiif=False, root='./data',
-                 group_idx=-1, specified_class=None):
+                 group_idx=-1, specified_class=None, red=1):
         super(ColoredMNISTRAM, self).__init__(root, 
                                               transform=transform)
         self.start_idx = start_idx
         self.num_samples = num_samples
-        self.flip_sp = flip_sp
+        self.red = red
         self.causal_noise = causal_noise
         self.spurious_noise = spurious_noise
         self.train = train
@@ -93,7 +86,7 @@ class ColoredMNISTRAM(datasets.VisionDataset):
             im_array = np.array(im)
             # Assign a binary label y to the image based on the digit
             binary_label = 0 if label < 5 else 1
-            color_red = binary_label == 0
+            color_red = binary_label == self.red
             if np.random.uniform() < self.causal_noise:
                 binary_label = 1 - binary_label
             if not self.fiif:
@@ -102,7 +95,7 @@ class ColoredMNISTRAM(datasets.VisionDataset):
                 color_red = binary_label == 0
             if np.random.uniform() < self.spurious_noise:
                 color_red = not color_red
-            colored_arr = color_grayscale_arr(im_array, red=color_red, flip_colours=self.flip_sp)
+            colored_arr = color_grayscale_arr(im_array, red=color_red,)
             dataset.append((Image.fromarray(colored_arr), binary_label))
         if self.specified_class != None:
             self.data_label_tuples = [data for data in dataset if data[1] == self.specified_class]

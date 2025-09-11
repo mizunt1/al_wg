@@ -12,13 +12,13 @@ from acquisitions import (Random, UniformGroups,
                           EntropyPerGroup, AccuracyPerGroup, Entropy, EntropyUniformGroups)
 import wandb
 from tools import slurm_infos
-from create_datasets import two_groups_cmnist, five_groups_cmnist, ten_groups_cmnist,ten_groups_cmnist_multiple_int, yxm_groups_cmnist, groups_to_env
+from create_datasets import two_groups_cmnist, five_groups_cmnist, ten_groups_cmnist,ten_groups_cmnist_multiple_int, yxm_groups_cmnist, groups_to_env, leaky_groups, one_balanced_cmnist
 
 # to turn off wandb, export WANDB_MODE=disabled
 def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=150,
          acquisition='random', data1_size=5000,
          data2_size=1000, start_acquisition='random',
-         data_mode='two_groups', causal_noise=0, spurious_noise=0):
+         data_mode='two_groups', causal_noise=0, spurious_noise=0, num_spurious_groups=4):
     wandb.init(
         project=project_name,
         settings=wandb.Settings(start_method='fork')
@@ -64,9 +64,18 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
                                                                causal_noise,
                                                                data1_size,
                                                                data2_size,
-                                                               trans)
+                                                               trans)    
+    elif data_mode == 'leaky_groups':
+        data_train, start_idx = leaky_groups(data1_size, sp_noise=spurious_noise,
+                                             num_spurious_groups=num_spurious_groups, trans=trans)
         group_to_log1 = 0
-        group_to_log2 = 9
+        group_to_log2 = num_spurious_groups
+
+    elif data_mode == 'one_balanced_cmnist':
+        data_train, start_idx = one_balanced_cmnist(data1_size,
+                                                    num_spurious_groups=num_spurious_groups, trans=trans)
+        group_to_log1 = 0
+        group_to_log2 = num_spurious_groups
 
     else:
         print('data mode not recognised')
@@ -119,7 +128,6 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         'accuracy': AccuracyPerGroup,
         'entropy': Entropy,
         'entropy_uniform_groups': EntropyUniformGroups}
-
     kwargs_map = {'random': {'al_data': al_data, 'al_size': al_size},
                   'uniform_groups': {'al_data': al_data, 'group_proportions': group_dict},
                   'entropy_per_group': {'al_data': al_data, 'al_size': al_size},
@@ -226,6 +234,7 @@ if __name__ == "__main__":
     parser.add_argument('--data1_size', type=int, default=5000)
     parser.add_argument('--data2_size', type=int, default=1000)
     parser.add_argument('--num_epochs', type=int, default=150)
+    parser.add_argument('--num_spurious_groups', type=int, default=4)
     parser.add_argument('--acquisition', type=str, default='random')
     parser.add_argument('--start_acquisition', type=str, default='random')
     parser.add_argument('--project_name', type=str, default='al_wg')
