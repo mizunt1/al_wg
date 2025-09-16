@@ -191,17 +191,17 @@ def one_balanced_cmnist(data1_size, num_spurious_groups, trans=None):
     data.append(data_balanced)
     return data, start_idx
 
-def leaky_groups(data1_size, sp_noise=0.05, num_spurious_groups=5, trans=None):
+def leaky_groups(data1_size, spurious_noise=0.05, num_spurious_groups=5, trans=None):
     data = []
     for i in range(num_spurious_groups):
         start_idx = 0
-        dataset = ColoredMNISTRAM(root='./data', sp_noise=sp_noise, 
+        dataset = ColoredMNISTRAM(root='./data', spurious_noise=spurious_noise, 
                                   transform=trans, start_idx=start_idx, num_samples=data1_size, 
                                   red=1, group_idx=i)
         start_idx += data1_size
         data.append(dataset)
         
-    dataset = ColoredMNISTRAM(root='./data', sp_noise=sp_noise,
+    dataset = ColoredMNISTRAM(root='./data', spurious_noise=spurious_noise,
                               transform=trans, start_idx=start_idx, num_samples=data1_size, 
                               red=0, group_idx=num_spurious_groups)
     start_idx += data1_size

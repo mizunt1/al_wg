@@ -9,6 +9,7 @@ from wilds_dataset import WILDSDataset
 from wilds.common.grouper import CombinatorialGrouper
 from wilds.common.metrics.all_metrics import Accuracy
 from gdro_loss import LossComputer
+import collections
 
 class WaterbirdsDataset(WILDSDataset):
     """
@@ -63,8 +64,8 @@ class WaterbirdsDataset(WILDSDataset):
             'compressed_size': None}}
 
     def __init__(self, version=None, root_dir='data', download=False, split_scheme='official',
-                 metadata_name='metadata.csv',
-                 split_names={'train': 'Train', 'val': 'Validation', 'test': 'Test'}):
+                 metadata_name='metadata.csv', rep_file_path='data/waterbirds_v1.0/waterbirds_resnet50',
+                 split_names={'train': 'Train', 'val': 'Validation', 'test': 'Test'}, use_rep=False):
         self._version = version
         self._data_dir = self.initialize_data_dir(root_dir, download)
         if not os.path.exists(self.data_dir):
@@ -75,7 +76,7 @@ class WaterbirdsDataset(WILDSDataset):
         # Note: metadata_df is one-indexed.
         metadata_df = pd.read_csv(
             os.path.join(self.data_dir, metadata_name))
-
+        self.rep_file_path = rep_file_path
         # Get the y values
         self._y_array = torch.LongTensor(metadata_df['y'].values)
         self._y_size = 1
@@ -107,16 +108,21 @@ class WaterbirdsDataset(WILDSDataset):
             dataset=self,
             groupby_fields=(['background', 'y']))
 
+        self.use_rep = use_rep
         super().__init__(root_dir, download, split_scheme)
 
     def get_input(self, idx):
        """
        Returns x for a given idx.
        """
-       img_filename = os.path.join(
-           self.data_dir,
-           self._input_array[idx])
-       x = Image.open(img_filename).convert('RGB')
+       if self.use_rep:
+           file_name = self._input_array[idx].split('jpg')[0].replace('/','')
+           x = torch.load(f"{self.rep_file_path}/tensor_{file_name}pt", weights_only=False)
+       else:
+           img_filename = os.path.join(
+               self.data_dir,
+               self._input_array[idx])
+           x = Image.open(img_filename).convert('RGB')
        return x
 
     def eval(self, y_pred, y_true, metadata, prediction_fn=None):
@@ -158,9 +164,7 @@ class WaterbirdsDataset(WILDSDataset):
         return results, results_str
     
 def train_batched(model=None, epochs=30, dataloader=None, dataloader_test=None,
-                  weight_decay=0.01, lr=0.001, flatten=False, label_wb='', gdro=False, num_groups=None):
-    
-    
+                  weight_decay=0.01, lr=0.001, flatten=False, label_wb='', gdro=False, num_groups=None, norm_dict=None):
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -171,14 +175,16 @@ def train_batched(model=None, epochs=30, dataloader=None, dataloader_test=None,
     for epoch in range(epochs):
         total_correct = 0
         total_points = 0
-        for batch_idx, (data, target, meta, pseudo_g) in enumerate(dataloader):
+        for batch_idx, data_dict in enumerate(dataloader):
+            data = data_dict['data']
+            target = data_dict['target']
+            meta = data_dict['metadata']
+            pseudo_g = data_dict['group_id']
             data, target = data.to(device), target.to(device)
-            
             optimizer.zero_grad()
             if flatten:
                 data = data.reshape(-1, 3*28*28)
             output = model(data).squeeze(1)
-
             out = output.argmax(axis=1)
             if gdro:
                 loss_computer = LossComputer(
@@ -198,7 +204,6 @@ def train_batched(model=None, epochs=30, dataloader=None, dataloader_test=None,
             else:
                 loss_fn = nn.CrossEntropyLoss()
                 loss = loss_fn(output, target)
-            
             loss.backward()
             optimizer.step()
             total_correct += sum(out == target)
@@ -207,7 +212,7 @@ def train_batched(model=None, epochs=30, dataloader=None, dataloader_test=None,
                 groups.extend(pseudo_g)
 
     train_acc = (total_correct / total_points).cpu().item()
-    test_acc = test_batched(model, dataloader_test, device)
+    test_acc = test_per_group(model, dataloader_test, ' ')
     for i in range(num_groups):
         group_dict[i] = sum(np.array(groups) == i)
 
@@ -217,15 +222,19 @@ def test_batched(model, dataloader_test, device):
     total_correct_test = 0
     total_points_test = 0
     model.eval()
-    for batch_idx, (data, target, meta, _) in enumerate(dataloader_test):
+    for batch_idx, data_dict in enumerate(dataloader_test):
+        data = data_dict['data']
+        target = data_dict['target']
         data, target = data.to(device), target.to(device)
-        output = model(data)
+        output = model(data).squeeze(1)
         out = output.argmax(axis=1)
         total_correct_test += sum(out == target)
         total_points_test += len(target)
     return (total_correct_test/total_points_test).cpu().item()
 
-def test_per_group(test_loader, model, dataset, annot):
+def test_per_group(model, test_loader, annot):
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
     model.eval()
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -239,9 +248,13 @@ def test_per_group(test_loader, model, dataset, annot):
     lw_total_sum = 1e-3
     correct = 0
     total_data = 0
-    for x, y ,meta,_ in test_loader:
-        x, y = x.to(device), y.to(device)
-        output = model(x)
+    for data_dict in test_loader:
+        data = data_dict['data']
+        y = data_dict['target']
+        meta = data_dict['metadata']
+        pseudo_g = data_dict['group_id']
+        data, y = data.to(device), y.to(device)
+        output = model(data).squeeze(1)
         correct_batch = torch.argmax(output, axis=1) == y
         correct += correct_batch.sum()
         wwb, ww_total_sumb, llb, ll_total_sumb, wlb, wl_total_sumb, lwb, lw_total_sumb = return_group_acc(correct_batch, meta)
@@ -253,7 +266,7 @@ def test_per_group(test_loader, model, dataset, annot):
         wl_total_sum += wl_total_sumb
         lw += lwb
         lw_total_sum += lw_total_sumb
-    test_acc_final = {annot + ' ww test acc': ww/ww_total_sum, annot + ' ll test acc': ll/ll_total_sum, annot + ' wl test acc': wl/wl_total_sum, annot + ' lw test acc' : lw/lw_total_sum}
+    test_acc_final = {annot + ' ww test acc': (ww/ww_total_sum).cpu().item(), annot + ' ll test acc': (ll/ll_total_sum).cpu().item(), annot + ' wl test acc': (wl/wl_total_sum).cpu().item(), annot + ' lw test acc' : (lw/lw_total_sum).cpu().item()}
     print('Test accuracy for ww: {:.3f}, ll: {:.3f}, wbl: {:.3f}, lbw: {:.3f}'.format(
         ww/ww_total_sum, ll/ll_total_sum, wl/wl_total_sum, lw/lw_total_sum))
     print('Test, total count for ww: {:.1f}, ll: {:.1f}, wbl: {:.1f}, lbw: {:.1f}'.format(

@@ -21,6 +21,7 @@ class ActiveLearningDataGroups():
         self._update_indices()
         self._create_group_indices()
         self.batch_size = batch_size
+
     def _update_indices(self):
         self.pool.indices = np.nonzero(self.pool_mask)[0]
         self.train.indices = np.nonzero(self.train_mask)[0]
@@ -39,8 +40,9 @@ class ActiveLearningDataGroups():
         indices = self.train.indices
         return indices
     
-    def create_dataloader_with_indices(self, indices):
-        batch_size = len(indices)
+    def create_dataloader_with_indices(self, indices, batch_size=None):
+        if batch_size == None:
+            batch_size = len(indices)
         dataset_subset = torch.utils.data.Subset(self.dataset, indices)
         return DataLoader(dataset_subset, batch_size=batch_size,
                           num_workers=self.num_workers, pin_memory=True)
@@ -59,7 +61,10 @@ class ActiveLearningDataGroups():
         indexes_in_pool = self.pool.indices
         available_from_group = list(set(indexes_for_group).intersection(set(indexes_in_pool)))
         assert size <= len(available_from_group)
-        available_indices = np.random.permutation(available_from_group)[:size]
+        if size!= -1:
+            available_indices = np.random.permutation(available_from_group)[:size]
+        else:
+            available_indices = np.random.permutation(available_from_group)
         return available_indices
 
     def get_indices_groups(self, group_dict={0:0,1:10}):

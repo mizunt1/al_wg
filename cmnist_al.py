@@ -9,7 +9,7 @@ from cmnist_ram import ColoredMNISTRAM, train_batched, test_batched
 from tools import calc_ent_batched, calc_ent_per_group_batched, plot_dictionary, log_dict
 from pprint import pprint
 from acquisitions import (Random, UniformGroups,
-                          EntropyPerGroup, AccuracyPerGroup, Entropy, EntropyUniformGroups)
+                          EntropyPerGroup, AccuracyPerGroup, Entropy, EntropyUniformGroups, EntropyPerGroupOrdered)
 import wandb
 from tools import slurm_infos
 from create_datasets import two_groups_cmnist, five_groups_cmnist, ten_groups_cmnist,ten_groups_cmnist_multiple_int, yxm_groups_cmnist, groups_to_env, leaky_groups, one_balanced_cmnist
@@ -66,7 +66,7 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
                                                                data2_size,
                                                                trans)    
     elif data_mode == 'leaky_groups':
-        data_train, start_idx = leaky_groups(data1_size, sp_noise=spurious_noise,
+        data_train, start_idx = leaky_groups(data1_size, spurious_noise=spurious_noise,
                                              num_spurious_groups=num_spurious_groups, trans=trans)
         group_to_log1 = 0
         group_to_log2 = num_spurious_groups
@@ -85,14 +85,14 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
     
     group_dict = {key: samples_per_group for key in range(num_groups)}
     dataset1_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
-                                     causal_noise=0,
-                                     transform=trans, start_idx=start_idx, num_samples=5000,
-                                    flip_sp=False, group_idx=0)
+                                      causal_noise=0,
+                                      transform=trans, start_idx=start_idx, num_samples=5000,
+                                      group_idx=0, red=1)
     start_idx += 5000
     dataset2_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
-                                     causal_noise=0,
-                                     transform=trans, start_idx=start_idx, num_samples=5000,
-                                      flip_sp=True, group_idx=1)
+                                      causal_noise=0,
+                                      transform=trans, start_idx=start_idx, num_samples=5000,
+                                      group_idx=1, red=0)
     start_idx += 5000
     dataloader1_unseen = torch.utils.data.DataLoader(dataset1_unseen,
                                                       batch_size=64, **kwargs)
@@ -104,16 +104,16 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
                                    transform=trans,
                                    start_idx=0, 
                                    num_samples=5000,
-                                   flip_sp=False)
+                                   red=1)
     test_loader = torch.utils.data.DataLoader(dataset_test, batch_size=64, shuffle=True, **kwargs)
     data_causal = ColoredMNISTRAM(root='./data', train=False, spurious_noise=0.5, 
                                      causal_noise=0,
                                      transform=trans, start_idx=5000, num_samples=2000, 
-                                     flip_sp=False)
+                                     red=1)
     data_sp = ColoredMNISTRAM(root='./data', train=False, spurious_noise=0.0, 
                               causal_noise=0.5,
                               transform=trans, start_idx=7000, 
-                              num_samples=2000, flip_sp=False)
+                              num_samples=2000, red=1)
 
     dataloader_causal = torch.utils.data.DataLoader(data_causal,
                                                     batch_size=64, **kwargs)
@@ -127,14 +127,16 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         'entropy_per_group': EntropyPerGroup,
         'accuracy': AccuracyPerGroup,
         'entropy': Entropy,
-        'entropy_uniform_groups': EntropyUniformGroups}
+        'entropy_uniform_groups': EntropyUniformGroups,
+        'entropy_per_group_ordered': EntropyPerGroupOrdered}
     kwargs_map = {'random': {'al_data': al_data, 'al_size': al_size},
                   'uniform_groups': {'al_data': al_data, 'group_proportions': group_dict},
                   'entropy_per_group': {'al_data': al_data, 'al_size': al_size},
                   'entropy': {'al_data': al_data, 'al_size': al_size},
                   'accuracy': {'al_data': al_data, 'al_size': al_size},
                   'entropy_uniform_groups':{'al_data': al_data, 'al_size': al_size,
-                                            'group_proportions': group_dict}}
+                                            'group_proportions': group_dict},
+                  'entropy_per_group_ordered': {'al_data': al_data, 'al_size': al_size}}
     
     # initial random or uniform acquisition to start with
     acquisition_method = method_map[start_acquisition](**kwargs_map[start_acquisition])
@@ -203,6 +205,9 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
             acquisition_method.information_for_acquisition(model, indices, num_groups, k=3)
         elif acquisition == 'entropy_uniform_groups':
             acquisition_method.information_for_acquisition(model, num_groups)
+        elif acquisition == 'entropy_per_group_ordered':
+            acquisition_method.information_for_acquisition(model, num_groups)
+            
         else:
             print('acquisition not recognised')
         # acquire data

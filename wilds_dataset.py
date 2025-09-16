@@ -22,8 +22,7 @@ class WILDSDataset:
             self._metadata_array = self._metadata_array.unsqueeze(1)
         self._add_coarse_domain_metadata()
         self.check_init()
-        self.pseudo_group_label = -1
-        
+
     def __len__(self):
         return len(self.y_array)
 
@@ -33,7 +32,9 @@ class WILDSDataset:
         x = self.get_input(idx)
         y = self.y_array[idx]
         metadata = self.metadata_array[idx]
-        return {'data': x, 'target': y, 'metadata': metadata, 'group_id': self.pseudo_group_label}
+        group_id = self._split_array[idx]
+        return {'data': x, 'target': y, 'metadata': metadata, 'group_id': group_id}
+    
 
     def get_input(self, idx):
         """
@@ -114,8 +115,7 @@ class WILDSDataset:
 
         # Check splits
         assert self.split_dict.keys()==self.split_names.keys()
-        assert 'train' in self.split_dict
-        assert 'val' in self.split_dict
+        assert 'test' in self.split_dict
 
         # Check the form of the required arrays
         assert (isinstance(self.y_array, torch.Tensor) or isinstance(self.y_array, list))
@@ -494,14 +494,19 @@ class WILDSSubset(WILDSDataset):
                 setattr(self, attr_name, getattr(dataset, attr_name))
         self.transform = transform
         self.do_transform_y = do_transform_y
+        
     def __getitem__(self, idx):
-        x, y, metadata, pseudo_g = self.dataset[self.indices[idx]]
+        dict_data = self.dataset[self.indices[idx]]
+        x = dict_data['data']
+        y = dict_data['target']
+        meta_data = dict_data['metadata']
+        group_id = dict_data['group_id']
         if self.transform is not None:
             if self.do_transform_y:
                 x, y = self.transform(x, y)
             else:
                 x = self.transform(x)
-        return x, y, metadata, self.pseudo_group_label
+        return {'data': x, 'target': y, 'metadata': meta_data, 'group_id': group_id}
 
     def __len__(self):
         return len(self.indices)

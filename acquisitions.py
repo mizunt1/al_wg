@@ -92,6 +92,36 @@ class Entropy(ActiveLearningAcquisitions):
         greatest_ent_points = [item[1] for item in sorted_by_ent[:self.al_size]]
         return greatest_ent_points
 
+
+class EntropyPerGroupOrdered(ActiveLearningAcquisitions):
+    def __init__(self, al_data=None, al_size=None):
+        self.al_data = al_data
+        self.al_size = al_size
+        self.group_proportions = None
+
+    def _ent_per_group_inverse(self, model, dataloader, num_groups, al_size):
+        group_ents = calc_ent_per_group_batched(model, dataloader, num_groups)
+        total_ent = sum(group_ents.values())
+        normalised_ents = {key: int((value/total_ent)*al_size) for key, value in group_ents.items()}
+        return normalised_ents
+
+    def information_for_acquisition(self, model, num_groups):
+        group_proportions = self._ent_per_group_inverse(
+            model, self.al_data.get_pool_loader(64), num_groups, self.al_size)
+        self.group_proportions = group_proportions
+        self.indices_selected = []
+        for group_id, proportion in group_proportions.items():
+            # get all indexes for one group
+            indices_all_group = self.al_data.get_indices_one_group(group_id)
+            loader = self.al_data.create_dataloader_with_indices(indices_all_group, batch_size=64)
+            entropies = calc_ent_per_point_batched(model, loader)
+            sorted_by_ent = sorted(zip(entropies, indices_all_group), reverse=True)
+            greatest_ent_points = [item[1] for item in sorted_by_ent[:proportion]]
+            self.indices_selected.extend(greatest_ent_points)
+
+    def return_indices(self):
+        return self.indices_selected
+
 class EntropyUniformGroups(ActiveLearningAcquisitions):
     def __init__(self, al_data=None, al_size=None,
                  group_proportions=None):

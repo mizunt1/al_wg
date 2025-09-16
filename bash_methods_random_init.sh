@@ -12,7 +12,7 @@ WANDB_API_KEY=$17a113b4804951bde9c66b2002fe378c0209fb64
 source $HOME/python_envs/alsgs/bin/activate
 METHODS=(entropy random)
 N_METHODS=${#METHODS[@]}
-N_SEEDS=5
+N_SEEDS=2
 SEED=$(( SLURM_ARRAY_TASK_ID % N_SEEDS))
 METHOD_IDX=$(( (SLURM_ARRAY_TASK_ID / N_SEEDS) % N_METHODS ))
-python cmnist_al.py --project_name groups_to_env --seed $SEED --data_mode groups_to_env --al_size 30 --acquisition ${METHODS[$METHOD_IDX]}  --start_acquisition random --causal_noise 0.0 --spurious_noise 0.0 
+python cmnist_al.py --project_name leaky_groups --seed $SEED --data_mode leaky_groups --al_size 30 --acquisition ${METHODS[$METHOD_IDX]}  --start_acquisition random --causal_noise 0.0 --spurious_noise 0.01 --num_spurious_groups 4

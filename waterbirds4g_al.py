@@ -1,23 +1,25 @@
 from torchvision import transforms
+import pickle
 import numpy as np
 import collections
 import torch
-from models import BayesianNet, resnet50, BayesianNetRes50
+from models import BayesianNet, resnet50, BayesianNetRes50, BayesianNetFc, Linear
 from active_learning_data import ActiveLearningDataGroups
 from tools import calc_ent_batched, calc_ent_per_group_batched, plot_dictionary, log_dict
 from pprint import pprint
-from acquisitions import Random, UniformGroups, EntropyPerGroup, AccuracyPerGroup, Entropy
 import wandb
 from tools import slurm_infos
 from wilds import get_dataset
 from wilds.common.data_loaders import get_train_loader
 from waterbirds_dataset import WaterbirdsDataset, train_batched, test_batched, test_per_group
+from acquisitions import (Random, UniformGroups,
+                          EntropyPerGroup, AccuracyPerGroup, Entropy, EntropyUniformGroups)
 
 
 # to turn off wandb, export WANDB_MODE=disabled
-def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=150,
-         acquisition='random', data1_size=5000,
-         data2_size=1000, start_acquisition='uniform_groups', data_mode='two_groups'):
+def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=20, lr=0.001,
+         acquisition='random', data1_size=5000, batch_size=64,
+         data2_size=1000, start_acquisition='uniform_groups', data_mode='metadata_v6.csv', use_rep=True):
     wandb.init(
         project=project_name,
         settings=wandb.Settings(start_method='fork')
@@ -33,109 +35,82 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
     #       'num points': [], 'causal acc': [], 'sp acc': []}
     log = collections.defaultdict(list)
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
-    trans = transforms.Compose([
-        transforms.ToTensor()
-    ])
+    if use_rep:
+        trans = None
+        file_name = 'data/waterbirds_v1.0/waterbirds_resnet50/normalisation.pkl'
+        with open(file_name, 'rb') as f:
+            norm_dict = pickle.load(f)
+            
+
+    else:
+        trans = transforms.Compose(
+            [transforms.Resize((448, 448)), transforms.ToTensor()]
+        )
     # training datasets
-    split_scheme = {"g0_train":10, "g1_train": 11,"g2_train": 12, "g3_train": 13,
-    "g0_test":20, "g1_test": 21,"g2_test": 22, "g3_test": 23, 'train':0, 'val':1, 'test':2}
+    split_scheme = {"g0_train":0, "g1_train": 1,"g2_train": 2, "g3_train": 3,
+                    "ww_test":4, "wl_test": 5,"ll_test": 6, "lw_test": 7, 'test': 8}
     split_names = {"g0_train":'g0_train', "g1_train": 'g1_train', "g2_train": 'g2_train',
-                   "g3_train": 'g3_train', "g0_test": 'g0_test',
-                   "g1_test": 'g1_test',"g2_test": 'g2_test',
-                   "g3_test": 'g3_test', 'train':'train', 'test':'test', 'val':'val'}
+                   "g3_train": 'g3_train', "ww_test":"ww_test", "wl_test": "wl_test","ll_test": "ll_test",
+                   "lw_test": "lw_test", "test": "test"}
 
     dataset = WaterbirdsDataset(version='1.0', root_dir='data/', download=True,
-                          split_scheme=split_scheme, split_names=split_names,
-                                metadata_name='metadata_5g_v2.csv')
+                                split_scheme=split_scheme, split_names=split_names,
+                                metadata_name=data_mode, use_rep=use_rep)
     training0_data = dataset.get_subset(
-        "g0_train",
-        transform=transforms.Compose(
-            [transforms.Resize((448, 448)), transforms.ToTensor()]
-        ),
-    )
+        "g0_train", transform=trans)
     training1_data = dataset.get_subset(
         "g1_train",
-        transform=transforms.Compose(
-            [transforms.Resize((448, 448)), transforms.ToTensor()]
-        ),
-    )
+        transform=trans)
     training2_data = dataset.get_subset(
         "g2_train",
-        transform=transforms.Compose(
-            [transforms.Resize((448, 448)), transforms.ToTensor()]
-        ),
-    )
+        transform=trans)
     training3_data = dataset.get_subset(
         "g3_train",
-        transform=transforms.Compose(
-            [transforms.Resize((448, 448)), transforms.ToTensor()]
-        ),
-    )
+        transform=trans)
+    testww_data = torch.utils.data.DataLoader(
+        dataset.get_subset(
+            "ww_test",
+            transform=trans), batch_size=batch_size, **kwargs)
 
-    test0_data = dataset.get_subset(
-        "g0_test",
-        transform=transforms.Compose(
-            [transforms.Resize((448, 448)), transforms.ToTensor()]
-        ),
-    )
-    test1_data = dataset.get_subset(
-        "g1_test",
-        transform=transforms.Compose(
-            [transforms.Resize((448, 448)), transforms.ToTensor()]
-        ),
-    )
-    test2_data = dataset.get_subset(
-        "g2_test",
-        transform=transforms.Compose(
-            [transforms.Resize((448, 448)), transforms.ToTensor()]
-        ),
-    )
-    test3_data = dataset.get_subset(
-        "g3_test",
-        transform=transforms.Compose(
-            [transforms.Resize((448, 448)), transforms.ToTensor()]
-        ),
-    )
-    dataset_val = dataset.get_subset(
-        "val",
-        transform=transforms.Compose(
-            [transforms.Resize((448, 448)), transforms.ToTensor()]
-        ),
-    )
+    testwl_data = torch.utils.data.DataLoader(
+        dataset.get_subset(
+            "wl_test",
+            transform=trans), batch_size=batch_size, **kwargs)
+    testll_data = torch.utils.data.DataLoader(
+        dataset.get_subset(
+        "ll_test", transform=trans), batch_size=batch_size, **kwargs)
+    testlw_data = torch.utils.data.DataLoader(
+        dataset.get_subset(
+        "lw_test",
+        transform=trans), batch_size=batch_size, **kwargs)
+    dataset_test = dataset.get_subset(
+        "test",
+        transform=trans)
+    dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=batch_size, **kwargs)
     group_to_log1 = 0
     group_to_log2 = 3
-    training0_data.pseudo_group_label = 0
-    training1_data.pseudo_group_label = 1
-    training2_data.pseudo_group_label = 2
-    training3_data.pseudo_group_label = 3
-
     data_train = [training0_data, training1_data, training2_data, training3_data]
     num_groups = len(data_train)
     samples_per_group = int(al_size / num_groups)
     
     group_dict = {key: samples_per_group for key in range(num_groups)}
-    dataset1_unseen = test0_data
-    dataset2_unseen = test3_data
 
-    dataloader1_unseen = torch.utils.data.DataLoader(dataset1_unseen,
-                                                      batch_size=64, **kwargs)
-    dataloader2_unseen = torch.utils.data.DataLoader(dataset2_unseen,
-                                                      batch_size=64, **kwargs)
-    test_loader = torch.utils.data.DataLoader(dataset_val, batch_size=64, **kwargs)
-
-    al_data = ActiveLearningDataGroups(data_train, dataset_val, 2)
+    al_data = ActiveLearningDataGroups(data_train, dataset_test, 2, batch_size)
     method_map = {
         'random': Random,
         'uniform_groups': UniformGroups,
         'entropy_per_group': EntropyPerGroup,
         'accuracy': AccuracyPerGroup,
-    'entropy': Entropy}
+        'entropy': Entropy,
+        'entropy_uniform_groups': EntropyUniformGroups}
 
     kwargs_map = {'random': {'al_data': al_data, 'al_size': al_size},
                   'uniform_groups': {'al_data': al_data, 'group_proportions': group_dict},
                   'entropy_per_group': {'al_data': al_data, 'al_size': al_size},
                   'entropy': {'al_data': al_data, 'al_size': al_size},
-                  'accuracy': {'al_data': al_data, 'al_size': al_size}}
+                  'accuracy': {'al_data': al_data, 'al_size': al_size},
+                  'entropy_uniform_groups':{'al_data': al_data, 'al_size': al_size,
+                                            'group_proportions': group_dict}}
     # initial random or uniform acquisition to start with
     acquisition_method = method_map[start_acquisition](**kwargs_map[start_acquisition])
     indices = acquisition_method.return_indices()
@@ -145,18 +120,24 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         # first we have training on random acquisiion
         # when using cross entropy based acquisition, we require 
         # two uniform group acquisitions
-        model = resnet50(classes=2)
-        dataloader_train, dataloader_test = al_data.get_train_and_test_loader(batch_size=64)
+        model = Linear(1000)
+        dataloader_train, dataloader_test = al_data.get_train_and_test_loader(batch_size=batch_size)
         # train model1 on first batch D1
         proportion_correct_train, proportion_correct_test, group_dict_train = train_batched(
             model=model, dataloader=dataloader_train,
-            dataloader_test=dataloader_test, lr=0.001, epochs=num_epochs, num_groups=num_groups)
-        ent1, cross_ent1 = calc_ent_batched(model, dataloader1_unseen, num_models=100)
-        ent2, cross_ent2 = calc_ent_batched(model, dataloader2_unseen, num_models=100)
+            dataloader_test=dataloader_test, lr=lr, epochs=num_epochs, num_groups=num_groups)
         num_points = len(al_data.train.indices)
+        entww, _ = calc_ent_batched(model, testww_data, num_models=100)
+        entwl, _ = calc_ent_batched(model, testwl_data, num_models=100)
+        entll, _ = calc_ent_batched(model, testll_data, num_models=100)
+        entlw, _ = calc_ent_batched(model, testlw_data, num_models=100)
+
         to_log = {'train_acc': proportion_correct_train, 'test_acc': proportion_correct_test,
-                  'cross_ent_1': cross_ent1, 'cross_ent_2': cross_ent2,
-                  'num points':num_points, 'ent1': ent1, 'ent2' :ent2,
+                  'num points':num_points,
+                  'entww': entww,
+                  'entwl': entwl,
+                  'entll': entll,
+                  'entlw': entlw,
                   'g0 points': group_dict_train[group_to_log1],
                   'g1 points': group_dict_train[group_to_log2]}
         wandb.log(to_log)
@@ -176,17 +157,17 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         
     for i in range(1, al_iters):
         print('al iteration: ', i)
-        # setting up trainig
+         #x setting up trainig
         num_epochs += 50
         acquisition_method = method_map[acquisition](**kwargs_map[acquisition])
         np.random.seed(seed)
         torch.manual_seed(seed)
-        model = BayesianNetRes50(num_classes=2)
-        dataloader_train, dataloader_test = al_data.get_train_and_test_loader(batch_size=64)
+        model = BayesianNetFc(2)
+        dataloader_train, dataloader_test = al_data.get_train_and_test_loader(batch_size=batch_size)
         num_points = len(al_data.train.indices)
         proportion_correct_train, proportion_correct_test, group_dict_train = train_batched(
             model=model, dataloader=dataloader_train,
-            dataloader_test=dataloader_test, lr=0.001, epochs=num_epochs, num_groups=num_groups)
+            dataloader_test=dataloader_test, lr=lr, epochs=num_epochs, num_groups=num_groups, norm_dict=norm_dict)
         # using model get info for acquisition function
         print('dict groups in train', group_dict_train)
         if acquisition in ['random', 'uniform_groups']:
@@ -197,20 +178,33 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
             acquisition_method.information_for_acquisition(model)
         elif acquisition == 'accuracy':
             acquisition_method.information_for_acquisition(model, indices, num_groups, k=3)
+        elif acquisition == 'entropy_uniform_groups':
+            acquisition_method.information_for_acquisition(model, num_groups)
         else:
             print('acquisition not recognised')
+
         # acquire data
         indices = acquisition_method.return_indices()
         al_data.acquire_with_indices(indices)
         # compute metrics and logging
-        ent1, cross_ent1 = calc_ent_batched(model, dataloader1_unseen, num_models=100)
-        ent2, cross_ent2 = calc_ent_batched(model, dataloader2_unseen, num_models=100)
-        to_log = {'train_acc': proportion_correct_train, 'test_acc': proportion_correct_test,
-                  'cross_ent_1': cross_ent1, 'cross_ent_2': cross_ent2,
-                  'num points':num_points, 'ent1': ent1, 'ent2' :ent2,
+        entww, _ = calc_ent_batched(model, testww_data, num_models=100)
+        entwl, _ = calc_ent_batched(model, testwl_data, num_models=100)
+        entll, _ = calc_ent_batched(model, testll_data, num_models=100)
+        entlw, _ = calc_ent_batched(model, testlw_data, num_models=100)
+        to_log = {'train_acc': proportion_correct_train,
+                  'num points':num_points,
                   'g0 points': group_dict_train[group_to_log1],
-                  'g1 points': group_dict_train[group_to_log2]}
-        wandb.log(to_log)
+                  'g1 points': group_dict_train[group_to_log2],
+                  'entww': entww,
+                  'entwl': entwl,
+                  'entll': entll,
+                  'entlw': entlw}
+
+        if isinstance(proportion_correct_test, dict):
+            to_log.update(proportion_correct_test)
+        else:
+            to_log.update({'test acc': proportion_correct_test})
+        wandb.log(to_log) 
         pprint(to_log)
         log = log_dict(log, to_log)
     plot_dictionary(log)
@@ -222,13 +216,12 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--al_iters', type=int, default=10)
     parser.add_argument('--al_size', type=int, default=100)
-    parser.add_argument('--data1_size', type=int, default=5000)
-    parser.add_argument('--data2_size', type=int, default=1000)
-    parser.add_argument('--num_epochs', type=int, default=150)
+    parser.add_argument('--num_epochs', type=int, default=20)
+    parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--acquisition', type=str, default='random')
     parser.add_argument('--start_acquisition', type=str, default='random')
     parser.add_argument('--project_name', type=str, default='al_wg')
-    parser.add_argument('--data_mode', type=str, default='two_groups')
+    parser.add_argument('--data_mode', type=str, default='metadata_v6.csv')
     
     args = parser.parse_args()
 
