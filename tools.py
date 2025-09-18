@@ -93,7 +93,7 @@ def entropy_drop_out(model, x, transforms=None, num_classes=2, num_models=100):
     nats_n_C = mean_log_probs_n_C * torch.exp(mean_log_probs_n_C)
     nats_n_C[torch.isnan(nats_n_C)] = 0.0
     entropies = -torch.sum(nats_n_C, dim=1)
-    return entropies
+    return entropies # [N]
 
 def cross_entropy(model, x, y):
     out = model(x)
@@ -139,6 +139,7 @@ def calc_ent_per_point_batched(model, dataloader, num_models=100):
         out = entropy_drop_out(model, data, num_models=num_models)
         ents.extend(out.tolist())
     return ents
+
 
 def calc_ent_per_group_batched(model, dataloader, num_groups, num_models=100):
     total_ent = 0

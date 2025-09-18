@@ -9,7 +9,9 @@ from cmnist_ram import ColoredMNISTRAM, train_batched, test_batched
 from tools import calc_ent_batched, calc_ent_per_group_batched, plot_dictionary, log_dict
 from pprint import pprint
 from acquisitions import (Random, UniformGroups,
-                          EntropyPerGroup, AccuracyPerGroup, Entropy, EntropyUniformGroups, EntropyPerGroupOrdered)
+                          EntropyPerGroup, AccuracyPerGroup,
+                          Entropy, EntropyUniformGroups,
+                          EntropyPerGroupOrdered, EPIG_largest_entropy_group)
 import wandb
 from tools import slurm_infos
 from create_datasets import two_groups_cmnist, five_groups_cmnist, ten_groups_cmnist,ten_groups_cmnist_multiple_int, yxm_groups_cmnist, groups_to_env, leaky_groups, one_balanced_cmnist
@@ -128,7 +130,9 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         'accuracy': AccuracyPerGroup,
         'entropy': Entropy,
         'entropy_uniform_groups': EntropyUniformGroups,
-        'entropy_per_group_ordered': EntropyPerGroupOrdered}
+        'entropy_per_group_ordered': EntropyPerGroupOrdered,
+    'EPIG': EPIG_largest_entropy_group}
+    
     kwargs_map = {'random': {'al_data': al_data, 'al_size': al_size},
                   'uniform_groups': {'al_data': al_data, 'group_proportions': group_dict},
                   'entropy_per_group': {'al_data': al_data, 'al_size': al_size},
@@ -136,7 +140,8 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
                   'accuracy': {'al_data': al_data, 'al_size': al_size},
                   'entropy_uniform_groups':{'al_data': al_data, 'al_size': al_size,
                                             'group_proportions': group_dict},
-                  'entropy_per_group_ordered': {'al_data': al_data, 'al_size': al_size}}
+                  'entropy_per_group_ordered': {'al_data': al_data, 'al_size': al_size},
+                  'EPIG': {'al_data': al_data, 'al_size': al_size, 'num_groups': num_groups}}
     
     # initial random or uniform acquisition to start with
     acquisition_method = method_map[start_acquisition](**kwargs_map[start_acquisition])
@@ -207,9 +212,11 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
             acquisition_method.information_for_acquisition(model, num_groups)
         elif acquisition == 'entropy_per_group_ordered':
             acquisition_method.information_for_acquisition(model, num_groups)
-            
+        elif acquisition == 'EPIG':
+            acquisition_method.information_for_acquisition(model)
         else:
             print('acquisition not recognised')
+            sys.exit()
         # acquire data
         indices = acquisition_method.return_indices()
         al_data.acquire_with_indices(indices)

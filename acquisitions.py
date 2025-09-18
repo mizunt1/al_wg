@@ -1,5 +1,9 @@
 from abc import ABC, abstractmethod
+from epig import batch_epig
+from cmnist_ram import return_log_probs
+import random
 from tools import calc_ent_per_group_batched, test_batched_per_group, calc_ent_per_point_batched
+import numpy as np
 
 class ActiveLearningAcquisitions(ABC):
     @abstractmethod
@@ -144,3 +148,41 @@ class EntropyUniformGroups(ActiveLearningAcquisitions):
             sorted_by_ent_one_group = [ind for ent, ind in sorted_by_ent if ind < self.al_data.group_idx[group_id+1] and ind > self.al_data.group_idx[group_id]][:num_points_per_g]
             final_indices.extend(sorted_by_ent_one_group)
         return final_indices
+
+
+class EPIG_largest_entropy_group(ActiveLearningAcquisitions):
+    def __init__(self, al_data=None, al_size=None,
+                 num_groups=None, num_samples_target=200):
+        self.al_data = al_data
+        self.al_size = al_size
+        self.num_samples_target = num_samples_target
+        self.num_groups = num_groups
+        self.scores_indices = None
+
+
+    def information_for_acquisition(self, model):
+        group_ents = calc_ent_per_group_batched(model,
+                                                self.al_data.get_pool_loader(64), self.num_groups)
+        # calculate group with maximum entropy
+        group_max_ent = max(group_ents, key=group_ents.get)
+        # get data for one group
+        
+        indices_target = self.al_data.get_indices_one_group(group=group_max_ent, size=-1)
+        # that would be the target group
+        # subsample target
+        sampled_target = np.random.choice(indices_target, size=self.num_samples_target, replace=False)
+        target_dataloader = self.al_data.create_dataloader_with_indices(sampled_target, batch_size=64)
+        # get log probs for target group and whole poolset
+        # get epig scores for poolset.         
+        log_probs_target = return_log_probs(model, target_dataloader)
+        log_probs_pool = return_log_probs(model, self.al_data.get_pool_loader(64))
+        epig_scores = batch_epig(log_probs_pool, log_probs_target)
+        self.scores_indices = zip(epig_scores, self.al_data.pool.indices) 
+
+    def return_indices(self):
+        sorted_by_score = sorted(self.scores_indices, reverse=True)
+        greatest_ent_points = [item[1] for item in sorted_by_score[:self.al_size]]
+        return greatest_ent_points
+    
+
+    

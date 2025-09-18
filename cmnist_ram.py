@@ -102,6 +102,23 @@ class ColoredMNISTRAM(datasets.VisionDataset):
         else:
             self.data_label_tuples = dataset
 
+def return_log_probs(model, dataloader, num_classes=2, num_models_k=100):
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+    num_points = len(dataloader.dataset)
+    to_fill = torch.zeros(num_points, num_models_k, num_classes) #[N_p, K, Cl]
+    done = 0
+    for batch_idx, out_dict in enumerate(dataloader):
+        data = out_dict['data']
+        batch_size = len(data)
+        data = data.to(device)
+        output = model(data, k=num_models_k) #[batch_size, k, Cl]
+        size = output.shape[0]
+        to_fill[done:done + size ,:,:] = output.detach()
+        done += output.shape[0]
+
+    return to_fill
+
 def train_batched(model=None, epochs=30, dataloader=None,
                   dataloader_test=None, lr=0.001, flatten=False, num_groups=2):
     use_cuda = torch.cuda.is_available()
