@@ -233,7 +233,7 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
                   'cross_ent_1': cross_ent1, 'cross_ent_2': cross_ent2,
                   'num points':num_points, 'ent1': ent1, 'ent2' :ent2,
                   'causal acc':causal_correct, 'sp acc': sp_correct}
-        to_log.update({'num points in g ' + str(key): value for key, value in group_dict_train.items()})
+        to_log.update({'g' + str(key) + ' points' : value for key, value in group_dict_train.items()})
         wandb.log(to_log)
         pprint(to_log)
     wandb.summary()
