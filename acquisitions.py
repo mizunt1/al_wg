@@ -166,7 +166,7 @@ class EPIG_largest_entropy_group(ActiveLearningAcquisitions):
         # calculate group with maximum entropy
         group_max_ent = max(group_ents, key=group_ents.get)
         # get data for one group
-        
+        print(group_max_ent)
         indices_target = self.al_data.get_indices_one_group(group=group_max_ent, size=-1)
         # that would be the target group
         # subsample target

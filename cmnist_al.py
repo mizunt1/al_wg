@@ -67,6 +67,11 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
                                                                data1_size,
                                                                data2_size,
                                                                trans)    
+    elif data_mode=='two_groups_best_case':
+        data_train, start_idx = two_groups_cmnist(spurious_noise, causal_noise,data1_size, data1_size, trans)
+        group_to_log1 = 0
+        group_to_log2 = 1
+
     elif data_mode == 'leaky_groups':
         data_train, start_idx = leaky_groups(data1_size, spurious_noise=spurious_noise,
                                              num_spurious_groups=num_spurious_groups, trans=trans)
@@ -167,10 +172,9 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         to_log = {'train_acc': proportion_correct_train, 'test_acc': proportion_correct_test,
                   'cross_ent_1': cross_ent1, 'cross_ent_2': cross_ent2,
                   'num points':num_points, 'ent1': ent1, 'ent2' :ent2,
-                  'causal acc':causal_correct, 'sp acc': sp_correct,
-                  'g0 points': group_dict_train[group_to_log1],
-                  'g1 points': group_dict_train[group_to_log2]}
+                  'causal acc':causal_correct, 'sp acc': sp_correct}
         wandb.log(to_log)
+
         # second random acquisition
         
         acquisition_method = method_map[acquisition](**kwargs_map[acquisition])
@@ -228,12 +232,11 @@ def main(seed, project_name='al_wg_test', al_iters=10, al_size=100, num_epochs=1
         to_log = {'train_acc': proportion_correct_train, 'test_acc': proportion_correct_test,
                   'cross_ent_1': cross_ent1, 'cross_ent_2': cross_ent2,
                   'num points':num_points, 'ent1': ent1, 'ent2' :ent2,
-                  'causal acc':causal_correct, 'sp acc': sp_correct,
-                  'g0 points': group_dict_train[group_to_log1],
-                  'g1 points': group_dict_train[group_to_log2]}
+                  'causal acc':causal_correct, 'sp acc': sp_correct}
+        to_log.update({'num points in g ' + str(key): value for key, value in group_dict_train.items()})
         wandb.log(to_log)
         pprint(to_log)
-        log = log_dict(log, to_log)
+    wandb.summary()
     plot_dictionary(log)
     return log
 

@@ -125,6 +125,7 @@ def two_groups_cmnist(spurious_noise, causal_noise, data1_size, data2_size, tran
     start_idx = 20000 + data2_size
     return [dataset0_train, dataset4_train], start_idx
 
+
 def ten_groups_cmnist(spurious_noise, causal_noise, data1_size, data2_size, trans):
     data = []
     for i in range(9):
