@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -10,7 +11,7 @@ from wilds.common.grouper import CombinatorialGrouper
 from wilds.common.metrics.all_metrics import Accuracy
 from gdro_loss import LossComputer
 import collections
-
+from early_stopping import EarlyStopping
 class WaterbirdsDataset(WILDSDataset):
     """
     The Waterbirds dataset.
@@ -163,8 +164,13 @@ class WaterbirdsDataset(WILDSDataset):
 
         return results, results_str
     
-def train_batched(model=None, epochs=30, dataloader=None, dataloader_test=None,
-                  weight_decay=0.01, lr=0.001, flatten=False, label_wb='', gdro=False, num_groups=None, norm_dict=None):
+def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=None,
+                  weight_decay=0, lr=0.001, flatten=False, label_wb='', gdro=False, num_groups=None,
+                  norm_dict=None, model_checkpoint_path='/network/scratch/m/mizu.nishikawa-toomey/waterbird_cp/', wandb=False):
+    now = datetime.now() 
+    formatted_full = now.strftime("%A, %B %d, %Y %H:%M:%S")
+    path = model_checkpoint_path + formatted_full + 'model.pt'
+    early_stopping = EarlyStopping(patience=10, verbose=True, path=path)
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -172,7 +178,8 @@ def train_batched(model=None, epochs=30, dataloader=None, dataloader_test=None,
     model.to(device)
     groups = []
     group_dict = collections.defaultdict(int)
-    for epoch in range(epochs):
+    for epoch in range(num_epochs):
+        print(epoch)
         total_correct = 0
         total_points = 0
         for batch_idx, data_dict in enumerate(dataloader):
@@ -211,12 +218,28 @@ def train_batched(model=None, epochs=30, dataloader=None, dataloader_test=None,
             if epoch == 0:
                 groups.extend(pseudo_g)
 
-    train_acc = (total_correct / total_points).cpu().item()
-    test_acc = test_per_group(model, dataloader_test, ' ')
+        train_acc = (total_correct / total_points).cpu().item()
+        test_acc = test_per_group(model, dataloader_test, ' ')
+        wga = min([value for key, value in test_acc.items()])
+        if train_acc >0.80:
+            early_stopping(-wga, model, test_acc)
+            if early_stopping.early_stop:
+                print('early stopping at epoch ' + str(epoch))
+                test_acc = early_stopping.test_acc
+                wga = -early_stopping.val_loss_min
+                break
+            
+        print('epoch ' + str(epoch))    
+        print('train acc '+ str(train_acc))
+        print(test_acc)
+        if wandb != False:
+            test_acc.update({'train acc': train_acc})
+            test_acc.update({'wga': wga})
+            wandb.log(test_acc)
     for i in range(num_groups):
         group_dict[i] = sum(np.array(groups) == i)
-
-    return train_acc, test_acc, group_dict
+        
+    return train_acc, test_acc, group_dict, wga
 
 def test_batched(model, dataloader_test, device):
     total_correct_test = 0
@@ -267,12 +290,12 @@ def test_per_group(model, test_loader, annot):
         lw += lwb
         lw_total_sum += lw_total_sumb
     test_acc_final = {annot + ' ww test acc': (ww/ww_total_sum).cpu().item(), annot + ' ll test acc': (ll/ll_total_sum).cpu().item(), annot + ' wl test acc': (wl/wl_total_sum).cpu().item(), annot + ' lw test acc' : (lw/lw_total_sum).cpu().item()}
-    print('Test accuracy for ww: {:.3f}, ll: {:.3f}, wbl: {:.3f}, lbw: {:.3f}'.format(
-        ww/ww_total_sum, ll/ll_total_sum, wl/wl_total_sum, lw/lw_total_sum))
-    print('Test, total count for ww: {:.1f}, ll: {:.1f}, wbl: {:.1f}, lbw: {:.1f}'.format(
-        ww_total_sum, ll_total_sum, wl_total_sum, lw_total_sum))
-    print('Test total pred count for ww: {:.1f}, ll: {:.1f}, wbl: {:.1f}, lbw: {:.1f}'.format(
-        ww, ll, wl, lw))
+    #print('Test accuracy for ww: {:.3f}, ll: {:.3f}, wbl: {:.3f}, lbw: {:.3f}'.format(
+    #    ww/ww_total_sum, ll/ll_total_sum, wl/wl_total_sum, lw/lw_total_sum))
+    #print('Test, total count for ww: {:.1f}, ll: {:.1f}, wbl: {:.1f}, lbw: {:.1f}'.format(
+    #    ww_total_sum, ll_total_sum, wl_total_sum, lw_total_sum))
+    #print('Test total pred count for ww: {:.1f}, ll: {:.1f}, wbl: {:.1f}, lbw: {:.1f}'.format(
+    #    ww, ll, wl, lw))
     return test_acc_final
 
 

@@ -2,6 +2,7 @@ from torchvision import transforms
 import pickle
 import numpy as np
 import collections
+import sys
 import torch
 import models
 #from models import BayesianNet, resnet50, BayesianNetRes50, BayesianNetFc, Linear, ConvNet, resnet50_all
@@ -44,6 +45,7 @@ def main(args):
         trans = transforms.Compose(
             [transforms.Resize((448, 448)), transforms.ToTensor()]
         )
+        norm_dict = None
     # training datasets
     split_scheme = {"g0_train":0, "g1_train": 1,"g2_train": 2, "g3_train": 3,
                     "ww_test":4, "wl_test": 5,"ll_test": 6, "lw_test": 7, 'test': 8}
@@ -88,11 +90,16 @@ def main(args):
     group_to_log1 = 0
     group_to_log2 = 3
     model = getattr(models, args.model_name)
-    data_train = [training0_data, training1_data, training2_data, training3_data]
+    if args.balanced:
+        data_train = [training0_data, training1_data]
+    elif args.maj_group_only:
+        data_train = [training1_data, training2_data, training3_data]
+    else:
+        data_train = [training0_data, training1_data, training2_data, training3_data]
+        
     num_groups = len(data_train)
     samples_per_group = int(args.al_size / num_groups)
-    train_normal = True
-    if train_normal:
+    if args.train_all_data:
         model = model(2)
         dataset = ConcatDataset(data_train)
         if args.size != -1:
@@ -100,14 +107,15 @@ def main(args):
             items = random.sample(list_idx, args.size)
             dataset = Subset(dataset, items)
         dataloader_train = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-        proportion_correct_train, proportion_correct_test, group_dict_train = train_batched(
+        proportion_correct_train, proportion_correct_test, group_dict_train, wga = train_batched(
                     model=model, dataloader=dataloader_train,
-            dataloader_test=dataloader_test, lr=args.lr, epochs=args.num_epochs, num_groups=num_groups, wandb=wandb)
+            dataloader_test=dataloader_test, lr=args.lr, num_epochs=args.num_epochs,
+            num_groups=num_groups, wandb=wandb, gdro=args.gdro, weight_decay=args.weight_decay)
         wandb.log({'num points': len(dataset)})
         sys.exit()
     group_dict = {key: samples_per_group for key in range(num_groups)}
 
-    al_data = ActiveLearningDataGroups(data_train, dataset_test, 2, batch_size)
+    al_data = ActiveLearningDataGroups(data_train, dataset_test, 2, args.batch_size)
     method_map = {
         'random': Random,
         'uniform_groups': UniformGroups,
@@ -127,57 +135,21 @@ def main(args):
     acquisition_method = method_map[args.start_acquisition](**kwargs_map[args.start_acquisition])
     indices = acquisition_method.return_indices()
     al_data.acquire_with_indices(indices)
-
-    if args.acquisition == 'accuracy':
-        # first we have training on random acquisiion
-        # when using cross entropy based acquisition, we require 
-        # two uniform group acquisitions
-        model = Linear(1000)
-        dataloader_train, dataloader_test = al_data.get_train_and_test_loader(batch_size=args.batch_size)
-        # train model1 on first batch D1
-        proportion_correct_train, proportion_correct_test, group_dict_train = train_batched(
-            model=model, dataloader=dataloader_train,
-            dataloader_test=dataloader_test, lr=args.lr, epochs=args.num_epochs, num_groups=num_groups)
-        num_points = len(al_data.train.indices)
-        entww, _ = calc_ent_batched(model, testww_data, num_models=100)
-        entwl, _ = calc_ent_batched(model, testwl_data, num_models=100)
-        entll, _ = calc_ent_batched(model, testll_data, num_models=100)
-        entlw, _ = calc_ent_batched(model, testlw_data, num_models=100)
-
-        to_log = {'train_acc': proportion_correct_train, 'test_acc': proportion_correct_test,
-                  'num points':num_points,
-                  'entww': entww,
-                  'entwl': entwl,
-                  'entll': entll,
-                  'entlw': entlw}
-        wandb.log(to_log)
-        # second random acquisition
-        
-        acquisition_method = method_map[args.acquisition](**kwargs_map[args.acquisition])
-        # sample uniformly from groups again to get D2
-        indices2 = acquisition_method.return_indices_random()
-        al_data.acquire_with_indices(indices2)
-        # test D2 on model 1 to obtain group sampling amounts 
-        
-        # third, non-random acquisition
-        acquisition_method.information_for_acquisition(model, indices2, num_groups, k=3)
-        # decide on the next aqcuisition based on the test accuracy results. 
-        indices = acquisition_method.return_indices()
-        al_data.acquire_with_indices(indices)
         
     for i in range(1, args.al_iters):
         print('al iteration: ', i)
-         #x setting up trainig
-        args.num_epochs += 5
-        acquisition_method = method_map[acquisition](**kwargs_map[acquisition])
+        # setting up trainig
+        acquisition_method = method_map[args.acquisition](**kwargs_map[args.acquisition])
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
-        model = BayesianNetFc(2)
+        model = getattr(models, args.model_name)
+        model = model(2)
         dataloader_train, dataloader_test = al_data.get_train_and_test_loader(batch_size=args.batch_size)
         num_points = len(al_data.train.indices)
-        proportion_correct_train, proportion_correct_test, group_dict_train = train_batched(
+        proportion_correct_train, proportion_correct_test, group_dict_train, wga = train_batched(
             model=model, dataloader=dataloader_train,
-            dataloader_test=dataloader_test, lr=args.lr, epochs=args.num_epochs, num_groups=num_groups, norm_dict=norm_dict)
+            dataloader_test=dataloader_test, lr=args.lr, num_epochs=args.num_epochs,
+            num_groups=num_groups, norm_dict=norm_dict, weight_decay=args.weight_decay)
         # using model get info for acquisition function
         print('dict groups in train', group_dict_train)
         if args.acquisition in ['random', 'uniform_groups']:
@@ -208,7 +180,8 @@ def main(args):
                   'entww': entww,
                   'entwl': entwl,
                   'entll': entll,
-                  'entlw': entlw}
+                  'entlw': entlw,
+                  'wga': wga}
         to_log.update({'g' + str(key) + ' points' : value for key, value in group_dict_train.items()})
         if isinstance(proportion_correct_test, dict):
             to_log.update(proportion_correct_test)
@@ -224,18 +197,23 @@ if __name__ == "__main__":
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--al_iters', type=int, default=10)
+    parser.add_argument('--al_iters', type=int, default=15)
     parser.add_argument('--al_size', type=int, default=50)
-    parser.add_argument('--num_epochs', type=int, default=10)
+    parser.add_argument('--num_epochs', type=int, default=30)
     parser.add_argument('--batch_size', type=int, default=30)
     parser.add_argument('--size', type=int, default=-1)
     parser.add_argument('--lr', type=float, default=1e-5)
+    parser.add_argument('--weight_decay', type=float, default=0)
     parser.add_argument('--acquisition', type=str, default='random')
     parser.add_argument('--model_name', type=str, default='BayesianNetRes50U')
     parser.add_argument('--start_acquisition', type=str, default='random')
     parser.add_argument('--project_name', type=str, default='al_wg')
     parser.add_argument('--data_mode', type=str, default='metadata_v7.csv')
     parser.add_argument('--use_rep', default=False, action='store_true')
+    parser.add_argument('--gdro', default=False, action='store_true')
+    parser.add_argument('--train_all_data', default=False, action='store_true')
+    parser.add_argument('--balanced', default=False, action='store_true')
+    parser.add_argument('--maj_group_only', default=False, action='store_true')
     
     args = parser.parse_args()
 
