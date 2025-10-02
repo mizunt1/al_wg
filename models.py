@@ -5,6 +5,10 @@ import torch.nn.functional as F
 import torch 
 import mc_dropout
 import torchvision
+from torch.hub import load_state_dict_from_url
+from torchvision import models
+from torchvision.models import VGG16_Weights
+from vgg import vgg16_bn
 
 def resnet50(classes=2, drop_out=0.0):
     model = torchvision.models.resnet50(pretrained=True)
@@ -177,6 +181,33 @@ class BayesianNetRes50ULarger(mc_dropout.BayesianModule):
     def mc_forward_impl(self, input):
         input = self.classifier(input)
         return input
+
+class BayesianVGGU(mc_dropout.BayesianModule):
+    # https://github.com/BlackHC/BatchBALD/blob/master/src/vgg_model.py
+    def __init__(self, num_classes):
+        super().__init__(num_classes)
+        self.model = models.vgg16(weights=VGG16_Weights.IMAGENET1K_V1)
+        self.classifier = nn.Sequential(
+                nn.Linear(1000, 4096),
+                nn.ReLU(True),
+                mc_dropout.MCDropout(),
+                nn.Linear(4096, 4096),
+                nn.ReLU(True),
+                mc_dropout.MCDropout(),
+                nn.Linear(4096, num_classes),
+            )
+    def deterministic_forward_impl(self, x):
+        x = self.model(x)
+        x = x.view(x.size(0), -1)
+        return x
+
+    def mc_forward_impl(self, input):
+        input = self.classifier(input)
+        return input
+
+def VGG16_bn(num_classes):
+    model = vgg16_bn(num_classes=num_classes)
+    return model
 
 class BayesianNetRes50FLarger(mc_dropout.BayesianModule):
     # https://github.com/BlackHC/BatchBALD/blob/master/src/mnist_model.py

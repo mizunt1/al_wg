@@ -5,7 +5,6 @@ import collections
 import sys
 import torch
 import models
-#from models import BayesianNet, resnet50, BayesianNetRes50, BayesianNetFc, Linear, ConvNet, resnet50_all
 from active_learning_data import ActiveLearningDataGroups
 from tools import calc_ent_batched, calc_ent_per_group_batched, plot_dictionary, log_dict
 from pprint import pprint
@@ -144,7 +143,8 @@ def main(args):
         torch.manual_seed(args.seed)
         model = getattr(models, args.model_name)
         model = model(2)
-        dataloader_train, dataloader_test = al_data.get_train_and_test_loader(batch_size=args.batch_size)
+        dataloader_train, dataloader_test = al_data.get_train_and_test_loader(
+            batch_size=args.batch_size)
         num_points = len(al_data.train.indices)
         proportion_correct_train, proportion_correct_test, group_dict_train, wga = train_batched(
             model=model, dataloader=dataloader_train,
@@ -169,10 +169,10 @@ def main(args):
         indices = acquisition_method.return_indices()
         al_data.acquire_with_indices(indices)
         # compute metrics and logging
-        entww, _ = calc_ent_batched(model, testww_data, num_models=100)
-        entwl, _ = calc_ent_batched(model, testwl_data, num_models=100)
-        entll, _ = calc_ent_batched(model, testll_data, num_models=100)
-        entlw, _ = calc_ent_batched(model, testlw_data, num_models=100)
+        entww, _, varww = calc_ent_batched(model, testww_data, num_models=100)
+        entwl, _, varwl = calc_ent_batched(model, testwl_data, num_models=100)
+        entll, _, varll = calc_ent_batched(model, testll_data, num_models=100)
+        entlw, _, varlw = calc_ent_batched(model, testlw_data, num_models=100)
         to_log = {'train_acc': proportion_correct_train,
                   'num points':num_points,
                   'g0 points': group_dict_train[group_to_log1],
@@ -181,6 +181,10 @@ def main(args):
                   'entwl': entwl,
                   'entll': entll,
                   'entlw': entlw,
+                  'varww': varww,
+                  'varwl': varwl,
+                  'varll': varll,
+                  'varlw': varlw,
                   'wga': wga}
         to_log.update({'g' + str(key) + ' points' : value for key, value in group_dict_train.items()})
         if isinstance(proportion_correct_test, dict):
