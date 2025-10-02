@@ -33,7 +33,7 @@ class WILDSDataset:
         y = self.y_array[idx]
         metadata = self.metadata_array[idx]
         group_id = self._split_array[idx]
-        return {'data': x, 'target': y, 'metadata': metadata, 'group_id': group_id}
+        return {'data': x, 'target': y, 'metadata': metadata, 'group_id': group_id, 'idx': idx}
     
 
     def get_input(self, idx):
@@ -113,9 +113,6 @@ class WILDSDataset:
             raise ValueError(
                 f'{self.data_dir} does not exist yet. Please generate the dataset first.')
 
-        # Check splits
-        assert self.split_dict.keys()==self.split_names.keys()
-        assert 'test' in self.split_dict
 
         # Check the form of the required arrays
         assert (isinstance(self.y_array, torch.Tensor) or isinstance(self.y_array, list))
@@ -506,7 +503,7 @@ class WILDSSubset(WILDSDataset):
                 x, y = self.transform(x, y)
             else:
                 x = self.transform(x)
-        return {'data': x, 'target': y, 'metadata': meta_data, 'group_id': group_id}
+        return {'data': x, 'target': y, 'metadata': meta_data, 'group_id': group_id, 'idx': self.indices[idx]}
 
     def __len__(self):
         return len(self.indices)

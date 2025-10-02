@@ -105,6 +105,7 @@ def cross_entropy(model, x, y):
 def calc_ent_batched(model, dataloader, num_models=100):
     total_ent = 0
     total_xent = 0
+    vars_ = 0
     use_cuda = True
     num_points = 0
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -117,12 +118,14 @@ def calc_ent_batched(model, dataloader, num_models=100):
         group_id = out_dict['group_id']
         data, target = data.to(device), target.to(device)
         #data = data.reshape(-1, 3*28*28)
-        total_ent += sum(entropy_drop_out(model, data, num_models=num_models))
+        ents = entropy_drop_out(model, data, num_models=num_models)
+        vars_ += torch.var(ents)
+        total_ent += sum(ents)
         total_xent += torch.sum(cross_entropy(model, data, target))
         num_points += len(target)
-    return (total_ent/num_points).cpu().item(), (total_xent/num_points).cpu().item()
+    return (total_ent/num_points).cpu().item(), (total_xent/num_points).cpu().item(), vars_.cpu().item()
 
-def calc_ent_per_point_batched(model, dataloader, num_models=100):
+def calc_ent_per_point_batched(model, dataloader, num_models=100, mean=False):
     use_cuda = True
     num_points = 0
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -138,7 +141,10 @@ def calc_ent_per_point_batched(model, dataloader, num_models=100):
         #data = data.reshape(-1, 3*28*28)
         out = entropy_drop_out(model, data, num_models=num_models)
         ents.extend(out.tolist())
-    return ents
+    if mean:
+        return sum(ents)/len(ents)
+    else:
+        return ents
 
 
 def calc_ent_per_group_batched(model, dataloader, num_groups, num_models=100):

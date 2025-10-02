@@ -68,7 +68,10 @@ class WaterbirdsDataset(WILDSDataset):
                  metadata_name='metadata.csv', rep_file_path='data/waterbirds_v1.0/waterbirds_resnet50',
                  split_names={'train': 'Train', 'val': 'Validation', 'test': 'Test'}, use_rep=False):
         self._version = version
-        self._data_dir = self.initialize_data_dir(root_dir, download)
+        if version != 'larger':
+            self._data_dir = self.initialize_data_dir(root_dir, download)
+        else:
+            self._data_dir = root_dir
         if not os.path.exists(self.data_dir):
             raise ValueError(
                 f'{self.data_dir} does not exist yet. Please generate the dataset first.')
@@ -219,7 +222,7 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
                 groups.extend(pseudo_g)
 
         train_acc = (total_correct / total_points).cpu().item()
-        test_acc = test_per_group(model, dataloader_test, ' ')
+        test_acc = test_per_group(model, dataloader_test)
         wga = min([value for key, value in test_acc.items()])
         if train_acc >0.80:
             early_stopping(-wga, model, test_acc)
@@ -255,7 +258,7 @@ def test_batched(model, dataloader_test, device):
         total_points_test += len(target)
     return (total_correct_test/total_points_test).cpu().item()
 
-def test_per_group(model, test_loader, annot):
+def test_per_group(model, test_loader, annot=''):
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     model.eval()
@@ -289,7 +292,7 @@ def test_per_group(model, test_loader, annot):
         wl_total_sum += wl_total_sumb
         lw += lwb
         lw_total_sum += lw_total_sumb
-    test_acc_final = {annot + ' ww test acc': (ww/ww_total_sum).cpu().item(), annot + ' ll test acc': (ll/ll_total_sum).cpu().item(), annot + ' wl test acc': (wl/wl_total_sum).cpu().item(), annot + ' lw test acc' : (lw/lw_total_sum).cpu().item()}
+    test_acc_final = {annot + 'ww test acc': (ww/ww_total_sum).cpu().item(), annot + 'll test acc': (ll/ll_total_sum).cpu().item(), annot + 'wl test acc': (wl/wl_total_sum).cpu().item(), annot + 'lw test acc' : (lw/lw_total_sum).cpu().item()}
     #print('Test accuracy for ww: {:.3f}, ll: {:.3f}, wbl: {:.3f}, lbw: {:.3f}'.format(
     #    ww/ww_total_sum, ll/ll_total_sum, wl/wl_total_sum, lw/lw_total_sum))
     #print('Test, total count for ww: {:.1f}, ll: {:.1f}, wbl: {:.1f}, lbw: {:.1f}'.format(
@@ -304,7 +307,6 @@ def return_group_acc(correct_list, metadata_list):
     label = 1
     land = 0
     water = 1
-
     ww = 0
     ww_total_sum = 1e-3
     ll = 0
@@ -353,4 +355,27 @@ def count_groups(data):
     counts = {'ww': ww, 'wl': wl,'ll':ll,'lw':lw}
     return counts
         
+def count_groups_dataloader(test_loader):
+    ww_total_sum = 0
+    ll_total_sum = 0
+    wl_total_sum = 0
+    lw_total_sum = 0
+    background = 0
+    label = 1
+    land = 0
+    water = 1    
+    for data_dict in test_loader:
+        data = data_dict['data']
+        y = data_dict['target']
+        meta = data_dict['metadata']
+        pseudo_g = data_dict['group_id']
+        ll = sum((meta[:,background] == land) & (meta[:,label] == land))
+        ww = sum((meta[:,background] == water) & (meta[:,label] == water))
+        lw = sum((meta[:,background] == water) & (meta[:,label] == land))
+        wl = sum((meta[:,background] == land) & (meta[:,label] == water))
+        ww_total_sum += ww
+        ll_total_sum += ll
+        wl_total_sum += wl
+        lw_total_sum += lw
+    return {'ww': ww_total_sum, 'll': ll_total_sum, 'wl': wl_total_sum, 'lw': lw_total_sum}
 
