@@ -120,7 +120,7 @@ def celebA(num_minority_points, num_majority_points, batch_size, root_dir='/netw
     training_data = torch.utils.data.DataLoader(
         torch.utils.data.ConcatDataset([data0, data1, data2, data3]), shuffle=True, batch_size=batch_size)
     test_data = {'bm_test': blond_male_test, 'bf_test': blond_female_test,
-                 'nbm_test': notblond_male_test, 'nbf_test': notblond_female_test, 'val': val_data}
+                 'nbm_test': notblond_male_test, 'nbf_test': notblond_female_test, 'val': val}
     return training_data, test_data, training_data_dict
 
 if __name__ == "__main__":
