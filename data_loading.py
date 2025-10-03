@@ -3,7 +3,7 @@ from torchvision import transforms
 import random
 from waterbirds_dataset import WaterbirdsDataset
 from torchvision import transforms
-from torchvision.datasets import CelebA
+from celeba import CelebA
 def waterbirds(num_minority_points, num_majority_points, batch_size,
                metadata_path='metadata_v8.csv', root_dir='data/'):
     use_cuda = True
@@ -80,9 +80,18 @@ def waterbirds(num_minority_points, num_majority_points, batch_size,
 
 def celebA():
     trans = transforms.Compose([transforms.PILToTensor()])
-    dataset = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans)
+    blond_male = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='train_bm')
+    blond_female = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='train_bf')
+    notblond_male = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='train_nbm')
+    notblond_female = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='train_nbf')
 
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1)
+    print(f"num male blond: {len(blond_male)}")
+    print(f'num female blond: {len(blond_female)}')
+    print(f'num male not blond : {len(notblond_male)}')
+    print(f'num female not blond: {len(notblond_female)}')
+
+
+    dataloader = torch.utils.data.DataLoader(blong_male, batch_size=1)
     for batch in dataloader:
         img, attributes = batch
         import pdb

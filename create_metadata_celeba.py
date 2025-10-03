@@ -27,6 +27,12 @@ if __name__ == "__main__":
     print(f'num female blond: {len(merged[merged["groups"] == 4])}')
     print(f'num male not blond : {len(merged[merged["groups"] == 5])}')
     print(f'num female not blond: {len(merged[merged["groups"] == 6])}')
-    merged['groups'].to_csv(root_dir + '/celeb_a_labelled_groups.csv')
+
+    # num male blond: 1260
+    # num female blond: 22020
+    # num male not blond : 30103
+    # num female not blond: 41064
+    merged['groups'].to_csv(root_dir + '/celeb_a_labelled_groups.txt', sep=' ', index=True, header=False)
     merged_read = pd.read_csv(root_dir + '/celeb_a_labelled_groups.csv')
 
+    
