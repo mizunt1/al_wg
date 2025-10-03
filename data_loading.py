@@ -78,24 +78,49 @@ def waterbirds(num_minority_points, num_majority_points, batch_size,
                  'lw_test': testlw_data, 'wl_test': testwl_data, 'val': val_data}
     return training_data, test_data, training_data_dict
 
-def celebA():
+def celebA(num_minority_points, num_majority_points, batch_size):
     trans = transforms.Compose([transforms.PILToTensor()])
+
     blond_male = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='train_bm')
     blond_female = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='train_bf')
     notblond_male = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='train_nbm')
     notblond_female = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='train_nbf')
 
+    blond_male_test = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='test_bm')
+    blond_female_test = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='test_bf')
+    notblond_male_test = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='test_nbm')
+    notblond_female_test = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='test_nbf')
+    val = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='val')
+    
+
+    
     print(f"num male blond: {len(blond_male)}")
     print(f'num female blond: {len(blond_female)}')
     print(f'num male not blond : {len(notblond_male)}')
     print(f'num female not blond: {len(notblond_female)}')
 
+    num_bm_points = num_minority_points
+    num_bf_points = int(num_majority_points /3)
+    num_nbm_points = int(num_majority_points /3)
+    num_nbf_points = int(num_majority_points /3)
+    assert num_bm_points <= len(blond_male)
+    assert num_bf_points <= len(blond_female)
+    assert num_nbm_points <= len(notblond_male)
+    assert num_nbf_points <= len(notblond_female)
+    print(f"Training data used sizes bm : {num_bm_points}, bf : {num_bf_points}, nbm: {num_nbm_points}, nbf: {num_nbf_points}")
+    idx_bm_points = random.sample([i for i in range(len(blond_male))], k=num_bm_points)
+    idx_bf_points = random.sample([i for i in range(len(blond_female))], k=num_bf_points)
+    idx_nbm_points = random.sample([i for i in range(len(notblond_male))], k=num_nbm_points)
+    idx_nbf_points = random.sample([i for i in range(len(notblond_female))], k=num_nbf_points)
+    data0 = torch.utils.data.Subset(blond_male, idx_bm_points)
+    data1 = torch.utils.data.Subset(blond_female, idx_bf_points)
+    data2 = torch.utils.data.Subset(notblond_male, idx_nbm_points)
+    data3 = torch.utils.data.Subset(notblond_female, idx_nbf_points)
+    training_data = torch.utils.data.DataLoader(
+        torch.utils.data.ConcatDataset([data0, data1, data2, data3]), shuffle=True, batch_size=batch_size)
+    test_data = {'bm_test': blond_male_test, 'bf_test': blond_female_test,
+                 'nbm_test': notblond_male_test, 'nbf_test': notblond_female_test, 'val': val_data}
+    return training_data, test_data, training_data_dict
 
-    dataloader = torch.utils.data.DataLoader(blong_male, batch_size=1)
-    for batch in dataloader:
-        img, attributes = batch
-        import pdb
-        pdb.set_trace()
 if __name__ == "__main__":
-
-    celebA()
+    celebA(100, 1000, 20)
