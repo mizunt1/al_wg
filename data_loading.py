@@ -118,11 +118,12 @@ def celebA(num_minority_points, num_majority_points, batch_size, root_dir='/netw
     data1 = torch.utils.data.Subset(blond_female, idx_bf_points)
     data2 = torch.utils.data.Subset(notblond_male, idx_nbm_points)
     data3 = torch.utils.data.Subset(notblond_female, idx_nbf_points)
+    training_data_dict = {'bm_train': data0, 'bf_train': data1, 'nbm_train': data2, 'nbf_train': data3}
     training_data = torch.utils.data.DataLoader(
         torch.utils.data.ConcatDataset([data0, data1, data2, data3]), shuffle=True, batch_size=batch_size)
     test_data = {'bm_test': blond_male_test, 'bf_test': blond_female_test,
                  'nbm_test': notblond_male_test, 'nbf_test': notblond_female_test, 'val': val}
-    return training_data, test_data, training_data
+    return training_data, test_data, training_data_dict
 
 if __name__ == "__main__":
     training_data, test_data, training_data_dict = celebA(100, 1000, 20)
