@@ -1,4 +1,5 @@
 import torch
+from torchvision import transforms
 import random
 from waterbirds_dataset import WaterbirdsDataset
 from torchvision import transforms
@@ -78,11 +79,14 @@ def waterbirds(num_minority_points, num_majority_points, batch_size,
     return training_data, test_data, training_data_dict
 
 def celebA():
-    dataset = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=60)
-    import pdb
-    pdb.set_trace()
+    trans = transforms.Compose([transforms.PILToTensor()])
+    dataset = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans)
 
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1)
+    for batch in dataloader:
+        img, attributes = batch
+        import pdb
+        pdb.set_trace()
 if __name__ == "__main__":
 
     celebA()

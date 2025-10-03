@@ -24,7 +24,8 @@ def main(args):
     log = collections.defaultdict(list)
     # load data
     # need to loop through datasize
-    datasize = [100, 200, 400, 600, 1000]
+    datasize = [50, 100, 150, 200, 400, 600, 800, 1000, 1250, 1500, 1750, 2000]
+    #datasize = [100]
     for size in datasize:
         num_minority_points = int(size*args.minority_prop)
         num_majority_points = size-num_minority_points
@@ -61,8 +62,10 @@ def main(args):
             to_log.update(test_acc)
             results = pd.concat([pd.DataFrame(to_log, index=[0]), results],ignore_index=True)
             wandb.log(to_log)
-    os.makedirs(args.save_dir, exist_ok=True) 
-    results.to_csv(args.save_dir + str(args.minority_prop))
+    dir_name = f"{args.save_dir}/{args.seed}"
+    os.makedirs(dir_name, exist_ok=True) 
+    results.to_csv(f"{dir_name}/{args.minority_prop}.csv")
+    
 if __name__ == "__main__":
     from argparse import ArgumentParser
     parser = ArgumentParser()
@@ -73,9 +76,9 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-5)
     parser.add_argument('--weight_decay', type=float, default=0)
     parser.add_argument('--model_name', type=str, default='BayesianNetRes50ULarger')
-    parser.add_argument('--project_name', type=str, default='uq_test_wb')
+    parser.add_argument('--project_name', type=str, default='uq_test_wb_exp1')
     parser.add_argument('--data_mode', type=str, default='wb')
-    parser.add_argument('--save_dir', type=str, default='results_hps/')
+    parser.add_argument('--save_dir', type=str, default='results_seeded')
     
     args = parser.parse_args()
 
