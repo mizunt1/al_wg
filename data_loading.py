@@ -4,6 +4,7 @@ import random
 from waterbirds_dataset import WaterbirdsDataset
 from torchvision import transforms
 from celeba import CelebA
+
 def waterbirds(num_minority_points, num_majority_points, batch_size,
                metadata_path='metadata_v8.csv', root_dir='data/'):
     use_cuda = True
@@ -78,19 +79,19 @@ def waterbirds(num_minority_points, num_majority_points, batch_size,
                  'lw_test': testlw_data, 'wl_test': testwl_data, 'val': val_data}
     return training_data, test_data, training_data_dict
 
-def celebA(num_minority_points, num_majority_points, batch_size):
+def celebA(num_minority_points, num_majority_points, batch_size, root_dir='/network/scratch/m/mizu.nishikawa-toomey'):
     trans = transforms.Compose([transforms.PILToTensor()])
 
-    blond_male = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='train_bm')
-    blond_female = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='train_bf')
-    notblond_male = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='train_nbm')
-    notblond_female = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='train_nbf')
+    blond_male = CelebA(root_dir, download=True, transform=trans, split='train_bm')
+    blond_female = CelebA(root_dir, download=True, transform=trans, split='train_bf')
+    notblond_male = CelebA(root_dir, download=True, transform=trans, split='train_nbm')
+    notblond_female = CelebA(root_dir, download=True, transform=trans, split='train_nbf')
 
-    blond_male_test = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='test_bm')
-    blond_female_test = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='test_bf')
-    notblond_male_test = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='test_nbm')
-    notblond_female_test = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='test_nbf')
-    val = CelebA('/network/scratch/m/mizu.nishikawa-toomey', download=True, transform=trans, split='val')
+    blond_male_test = CelebA(root_dir, download=True, transform=trans, split='test_bm')
+    blond_female_test = CelebA(root_dir, download=True, transform=trans, split='test_bf')
+    notblond_male_test = CelebA(root_dir, download=True, transform=trans, split='test_nbm')
+    notblond_female_test = CelebA(root_dir, download=True, transform=trans, split='test_nbf')
+    val = CelebA(root_dir, download=True, transform=trans, split='valid')
     
 
     
@@ -123,4 +124,4 @@ def celebA(num_minority_points, num_majority_points, batch_size):
     return training_data, test_data, training_data_dict
 
 if __name__ == "__main__":
-    celebA(100, 1000, 20)
+    training_data, test_data, training_data_dict = celebA(100, 1000, 20)
