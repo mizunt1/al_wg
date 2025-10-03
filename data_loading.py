@@ -77,9 +77,12 @@ def waterbirds(num_minority_points, num_majority_points, batch_size,
         torch.utils.data.ConcatDataset([data0, data1, data2, data3]), shuffle=True, batch_size=batch_size)
     test_data = {'ww_test': testww_data, 'll_test': testll_data,
                  'lw_test': testlw_data, 'wl_test': testwl_data, 'val': val_data}
-    return training_data, test_data, training_data_dict
+    return training_data, test_data, training_data
+
 
 def celebA(num_minority_points, num_majority_points, batch_size, root_dir='/network/scratch/m/mizu.nishikawa-toomey'):
+    # Note that minority group is blond male here.
+    
     trans = transforms.Compose([transforms.PILToTensor()])
 
     blond_male = CelebA(root_dir, download=True, transform=trans, split='train_bm')
@@ -92,8 +95,6 @@ def celebA(num_minority_points, num_majority_points, batch_size, root_dir='/netw
     notblond_male_test = CelebA(root_dir, download=True, transform=trans, split='test_nbm')
     notblond_female_test = CelebA(root_dir, download=True, transform=trans, split='test_nbf')
     val = CelebA(root_dir, download=True, transform=trans, split='valid')
-    
-
     
     print(f"num male blond: {len(blond_male)}")
     print(f'num female blond: {len(blond_female)}')
@@ -121,7 +122,7 @@ def celebA(num_minority_points, num_majority_points, batch_size, root_dir='/netw
         torch.utils.data.ConcatDataset([data0, data1, data2, data3]), shuffle=True, batch_size=batch_size)
     test_data = {'bm_test': blond_male_test, 'bf_test': blond_female_test,
                  'nbm_test': notblond_male_test, 'nbf_test': notblond_female_test, 'val': val}
-    return training_data, test_data, training_data_dict
+    return training_data, test_data, training_data
 
 if __name__ == "__main__":
     training_data, test_data, training_data_dict = celebA(100, 1000, 20)
