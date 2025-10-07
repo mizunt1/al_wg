@@ -22,6 +22,7 @@ class WILDSDataset:
             self._metadata_array = self._metadata_array.unsqueeze(1)
         self._add_coarse_domain_metadata()
         self.check_init()
+        self.source_id = -1
 
     def __len__(self):
         return len(self.y_array)
@@ -33,7 +34,7 @@ class WILDSDataset:
         y = self.y_array[idx]
         metadata = self.metadata_array[idx]
         group_id = self._split_array[idx]
-        return {'data': x, 'target': y, 'metadata': metadata, 'group_id': group_id, 'idx': idx}
+        return {'data': x, 'target': y, 'metadata': metadata, 'source_id': self.source_id, 'idx': idx}
     
 
     def get_input(self, idx):
@@ -57,7 +58,7 @@ class WILDSDataset:
         """
         raise NotImplementedError
 
-    def get_subset(self, split, frac=1.0, transform=None):
+    def get_subset(self, split, frac=1.0, transform=None, source_id=-1):
         """
         Args:
             - split (str): Split identifier, e.g., 'train', 'val', 'test'.
@@ -79,7 +80,7 @@ class WILDSDataset:
             num_to_retain = int(np.round(float(len(split_idx)) * frac))
             split_idx = np.sort(np.random.permutation(split_idx)[:num_to_retain])
 
-        return WILDSSubset(self, split_idx, transform)
+        return WILDSSubset(self, split_idx, transform, source_id=source_id)
 
     def _add_coarse_domain_metadata(self):
         """
@@ -469,7 +470,7 @@ class WILDSDataset:
 
 
 class WILDSSubset(WILDSDataset):
-    def __init__(self, dataset, indices, transform, do_transform_y=False):
+    def __init__(self, dataset, indices, transform, do_transform_y=False, source_id=-1):
         """
         This acts like `torch.utils.data.Subset`, but on `WILDSDatasets`.
         We pass in `transform` (which is used for data augmentation) explicitly
@@ -491,19 +492,19 @@ class WILDSSubset(WILDSDataset):
                 setattr(self, attr_name, getattr(dataset, attr_name))
         self.transform = transform
         self.do_transform_y = do_transform_y
+        self.source_id = source_id
         
     def __getitem__(self, idx):
         dict_data = self.dataset[self.indices[idx]]
         x = dict_data['data']
         y = dict_data['target']
         meta_data = dict_data['metadata']
-        group_id = dict_data['group_id']
         if self.transform is not None:
             if self.do_transform_y:
                 x, y = self.transform(x, y)
             else:
                 x = self.transform(x)
-        return {'data': x, 'target': y, 'metadata': meta_data, 'group_id': group_id, 'idx': self.indices[idx]}
+        return {'data': x, 'target': y, 'metadata': meta_data, 'source_id': self.source_id, 'idx': self.indices[idx]}
 
     def __len__(self):
         return len(self.indices)

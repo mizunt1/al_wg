@@ -6,7 +6,7 @@ from torchvision import transforms
 from celeba import CelebA
 
 def waterbirds(num_minority_points, num_majority_points, batch_size,
-               metadata_path='metadata_v8.csv', root_dir='data/'):
+               metadata_path='metadata_larger.csv', root_dir='data/'):
     use_cuda = True
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
     trans = transforms.Compose(
@@ -36,21 +36,15 @@ def waterbirds(num_minority_points, num_majority_points, batch_size,
         transform=trans)
     training_data_dict = {'wl_train': training0_data, 'lw_train': training1_data,
                           'ww_train': training2_data, 'll_train': training3_data}
-    testww_data = torch.utils.data.DataLoader(
-        dataset.get_subset(
-            "ww_test",
-            transform=trans), batch_size=batch_size, **kwargs)
-    testwl_data = torch.utils.data.DataLoader(
-        dataset.get_subset(
-            "wl_test",
-            transform=trans), batch_size=batch_size, **kwargs)
-    testll_data = torch.utils.data.DataLoader(
-        dataset.get_subset(
-        "ll_test", transform=trans), batch_size=batch_size, **kwargs)
-    testlw_data = torch.utils.data.DataLoader(
-        dataset.get_subset(
-        "lw_test",
-        transform=trans), batch_size=batch_size, **kwargs)
+
+    ww_test = dataset.get_subset("ww_test", transform=trans)
+    testww_data = torch.utils.data.DataLoader(ww_test, batch_size=batch_size, **kwargs)
+    wl_test = dataset.get_subset("wl_test", transform=trans)
+    testwl_data = torch.utils.data.DataLoader(wl_test, batch_size=batch_size,**kwargs)
+    ll_test = dataset.get_subset("ll_test", transform=trans)
+    testll_data = torch.utils.data.DataLoader(ll_test, batch_size=batch_size, **kwargs)
+    lw_test = dataset.get_subset("lw_test", transform=trans)
+    testlw_data = torch.utils.data.DataLoader(lw_test, batch_size=batch_size, **kwargs)
     val_data = torch.utils.data.DataLoader(
         dataset.get_subset(
         "val",
@@ -75,12 +69,14 @@ def waterbirds(num_minority_points, num_majority_points, batch_size,
     data3 = torch.utils.data.Subset(training3_data, idx_ll_points)
     training_data = torch.utils.data.DataLoader(
         torch.utils.data.ConcatDataset([data0, data1, data2, data3]), shuffle=True, batch_size=batch_size)
-    test_data = {'ww_test': testww_data, 'll_test': testll_data,
-                 'lw_test': testlw_data, 'wl_test': testwl_data, 'val': val_data}
-    return training_data, test_data, training_data
+    test_data_dict = {'ww_test': testww_data, 'll_test': testll_data,
+                      'lw_test': testlw_data, 'wl_test': testwl_data, 'val': val_data}
+    test_data = torch.utils.data.DataLoader(
+        torch.utils.data.ConcatDataset([ww_test, wl_test, ll_test, lw_test]), shuffle=True, batch_size=batch_size)
+    return training_data, test_data, training_data_dict, test_data_dict
 
 
-def celebA(num_minority_points, num_majority_points, batch_size, root_dir='/network/scratch/m/mizu.nishikawa-toomey'):
+def celeba_load(num_minority_points, num_majority_points, batch_size, root_dir='/network/scratch/m/mizu.nishikawa-toomey'):
     # Note that minority group is blond male here.
     
     trans = transforms.Compose([transforms.PILToTensor()])
@@ -109,7 +105,7 @@ def celebA(num_minority_points, num_majority_points, batch_size, root_dir='/netw
     assert num_bf_points <= len(blond_female)
     assert num_nbm_points <= len(notblond_male)
     assert num_nbf_points <= len(notblond_female)
-    print(f"Training data used sizes bm : {num_bm_points}, bf : {num_bf_points}, nbm: {num_nbm_points}, nbf: {num_nbf_points}")
+    print(f"Training data used sizes mb : {num_bm_points}, fb : {num_bf_points}, mnb: {num_nbm_points}, fnb: {num_nbf_points}")
     idx_bm_points = random.sample([i for i in range(len(blond_male))], k=num_bm_points)
     idx_bf_points = random.sample([i for i in range(len(blond_female))], k=num_bf_points)
     idx_nbm_points = random.sample([i for i in range(len(notblond_male))], k=num_nbm_points)
@@ -118,12 +114,16 @@ def celebA(num_minority_points, num_majority_points, batch_size, root_dir='/netw
     data1 = torch.utils.data.Subset(blond_female, idx_bf_points)
     data2 = torch.utils.data.Subset(notblond_male, idx_nbm_points)
     data3 = torch.utils.data.Subset(notblond_female, idx_nbf_points)
-    training_data_dict = {'bm_train': data0, 'bf_train': data1, 'nbm_train': data2, 'nbf_train': data3}
+    training_data_dict = {'mb_train': data0, 'fb_train': data1, 'mnb_train': data2, 'fnb_train': data3}
     training_data = torch.utils.data.DataLoader(
         torch.utils.data.ConcatDataset([data0, data1, data2, data3]), shuffle=True, batch_size=batch_size)
-    test_data = {'bm_test': blond_male_test, 'bf_test': blond_female_test,
-                 'nbm_test': notblond_male_test, 'nbf_test': notblond_female_test, 'val': val}
-    return training_data, test_data, training_data_dict
+    test_data_dict = {'mb_test': blond_male_test, 'fb_test': blond_female_test,
+                      'mnb_test': notblond_male_test, 'fnb_test': notblond_female_test, 'val': val}
+    test_data = torch.utils.data.DataLoader(
+        torch.utils.data.ConcatDataset([blond_male_test, blond_female_test, notblond_male_test, notblond_female_test]),
+        shuffle=True, batch_size=batch_size)
+
+    return training_data, test_data, training_data_dict, test_data_dict
 
 if __name__ == "__main__":
     training_data, test_data, training_data_dict = celebA(100, 1000, 20)

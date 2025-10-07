@@ -134,10 +134,8 @@ def calc_ent_per_point_batched(model, dataloader, num_models=100, mean=False):
     ents = []
     for batch_idx, out_dict in enumerate(dataloader):
         data = out_dict['data']
-        target = out_dict['target']
-        group_id = out_dict['group_id']
 
-        data, target = data.to(device), target.to(device)
+        data = data.to(device).float()
         #data = data.reshape(-1, 3*28*28)
         out = entropy_drop_out(model, data, num_models=num_models)
         ents.extend(out.tolist())

@@ -10,7 +10,7 @@ if __name__ == "__main__":
     merged = pd.merge(df, splits, left_index=True, right_index=True)
     train = merged[merged['split'] == 0]
     blond = train[train['Blond_Hair'] == 1]
-    not_blond = train[(train['Black_Hair'] == 1) | (train['Brown_Hair'] == 1)]
+    not_blond = train[train['Blond_Hair'] == -1]
 
     # identify group locations in train
     female_blond = blond[blond['Male'] == -1]
@@ -23,14 +23,21 @@ if __name__ == "__main__":
     merged.loc[female_blond.index, 'groups'] = 4
     merged.loc[male_notblond.index, 'groups'] = 5
     merged.loc[female_notblond.index, 'groups'] = 6
-    # num male blond: 1260
-    # num female blond: 22020
-    # num male not blond : 30103
-    # num female not blond: 41064
+
+    # train data
+    # num male blond: 1387
+    # num female blond: 22880
+    # num male not blond : 66874
+    # num female not blond: 71629
+    # test data
+    # num male blond: 180
+    # num female blond: 2480
+    # num male not blond : 7535
+    # num female not blond: 9767
 
     test = merged[merged['split'] == 2]
     blond = test[test['Blond_Hair'] == 1]
-    not_blond = test[(test['Black_Hair'] == 1) | (train['Brown_Hair'] == 1)]
+    not_blond = test[test['Blond_Hair'] == -1]
 
     # identify group locations in train
     female_blond = blond[blond['Male'] == -1]

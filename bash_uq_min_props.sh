@@ -6,7 +6,8 @@
 #SBATCH --mem=32Gb
 #SBATCH --array=0-50
 source $HOME/python_envs/alsgs/bin/activate
-PROPS=(1e-3 5e-3 7e-3 1e-2 3e-2 0.1 0.2 0.3 0.4 0.5)
+
+PROPS=(0.001 0.005 0.003 0.01 0.03 0.05 0.1 0.2 0.3 0.4 0.5)
 N_PROPS=${#PROPS[@]}
 N_SEEDS=5
 SEED=$(( SLURM_ARRAY_TASK_ID % N_SEEDS))

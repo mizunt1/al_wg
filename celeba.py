@@ -72,6 +72,7 @@ class CelebA(VisionDataset):
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         download: bool = False,
+        source_id: int =  -1,
     ) -> None:
         super().__init__(root, transform=transform, target_transform=target_transform)
         self.split = split
@@ -116,7 +117,7 @@ class CelebA(VisionDataset):
         bbox = self._load_csv("list_bbox_celeba.txt", header=1)
         landmarks_align = self._load_csv("list_landmarks_align_celeba.txt", header=1)
         attr = self._load_csv("list_attr_celeba.txt", header=1)
-
+        
         mask = slice(None) if split_ is None else (splits.data == split_).squeeze()
         if mask == slice(None):  # if split == "all"
             self.filename = splits.index
@@ -129,6 +130,11 @@ class CelebA(VisionDataset):
         # map from {-1, 1} to {0, 1}
         self.attr = torch.div(self.attr + 1, 2, rounding_mode="floor")
         self.attr_names = attr.header
+        self.split_masked = splits.data[mask]
+        self.group_string_map = {'mb': 0, 'fb': 1, 'mnb': 2, 'fnb': 3}
+        self.source_id = source_id
+        self.target_loc = attr.header.index('Blond_Hair')
+        self.confounder_loc = attr.header.index('Male')
 
     def _load_csv(
         self,
@@ -175,6 +181,7 @@ class CelebA(VisionDataset):
         X = PIL.Image.open(os.path.join(self.root, self.base_folder, "img_align_celeba", self.filename[index]))
 
         target: Any = []
+        split = self.split_masked[index]
         for t in self.target_type:
             if t == "attr":
                 target.append(self.attr[index, :])
@@ -198,8 +205,10 @@ class CelebA(VisionDataset):
                 target = self.target_transform(target)
         else:
             target = None
+        target_blond = target[self.target_loc]
+        target_male = target[self.confounder_loc]
 
-        return X, target
+        return {'data': X.float(), 'target': target_blond, 'metadata': (target_blond, target_male), 'source_id': self.source_id}
 
     def __len__(self) -> int:
         return len(self.attr)
@@ -207,3 +216,14 @@ class CelebA(VisionDataset):
     def extra_repr(self) -> str:
         lines = ["Target type: {target_type}", "Split: {split}"]
         return "\n".join(lines).format(**self.__dict__)
+
+    def group_mapping_fn(self, metadata):
+        # given meta data, convert to integer identifier of groups
+        target_blond = metadata[0]
+        target_male = metadata[1] 
+        mb = (target_blond == 1) & (target_male == 1)
+        fb = (target_blond == 1) & (target_male == 0)
+        mnb = (target_blond == 0) & (target_male == 1)
+        fnb = (target_blond == 0) & (target_male == 0)
+        groups = mb + fb + mnb*2 + fnb*3
+        return groups
