@@ -76,7 +76,7 @@ def waterbirds(num_minority_points, num_majority_points, batch_size,
     return training_data, test_data, training_data_dict, test_data_dict
 
 
-def celeba_load(num_minority_points, num_majority_points, batch_size, root_dir='/network/scratch/m/mizu.nishikawa-toomey'):
+def celeba_load(num_minority_points, num_majority_points, batch_size, root_dir='/tmp/'):
     # Note that minority group is blond male here.
     
     trans = transforms.Compose([transforms.PILToTensor()])

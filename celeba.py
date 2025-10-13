@@ -225,5 +225,6 @@ class CelebA(VisionDataset):
         fb = (target_blond == 1) & (target_male == 0)
         mnb = (target_blond == 0) & (target_male == 1)
         fnb = (target_blond == 0) & (target_male == 0)
-        groups = mb + fb + mnb*2 + fnb*3
+        groups = torch.zeros(len(metadata[0]))
+        groups = groups + fb + mnb*2 + fnb*3
         return groups
