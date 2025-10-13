@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import collections
+from torch.nn import functional as F
 
 def cross_entropy_per_group(model, data_test):
     groups = np.unique(data_test['u_hat'])
@@ -87,6 +88,7 @@ def entropy_drop_out(model, x, transforms=None, num_classes=2, num_models=100):
     if transforms is not None:
         x = transforms(x)
     out = model(x, k=num_models).detach().cpu()
+    out = F.log_softmax(out, dim=2)
     N, K, C = out.shape
     log_probs_N_K_C = out.to(torch.double)
     mean_log_probs_n_C = torch.logsumexp(log_probs_N_K_C, dim=1) - math.log(K)

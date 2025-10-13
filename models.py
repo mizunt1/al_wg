@@ -139,10 +139,10 @@ class BayesianNetRes50F(mc_dropout.BayesianModule):
 
 class BayesianNetRes50U(mc_dropout.BayesianModule):
     # https://github.com/BlackHC/BatchBALD/blob/master/src/mnist_model.py
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, pretrained):
         super().__init__(num_classes)
         inner_rep = 1000
-        self.model = torchvision.models.resnet50(pretrained=True)
+        self.model = torchvision.models.resnet50(pretrained=pretrained)
         d = self.model.fc.in_features
         self.model.fc = nn.Linear(d, inner_rep)
         self.classifier = nn.Sequential(
@@ -159,10 +159,10 @@ class BayesianNetRes50U(mc_dropout.BayesianModule):
 
 class BayesianNetRes50ULarger(mc_dropout.BayesianModule):
     # https://github.com/BlackHC/BatchBALD/blob/master/src/vgg_model.py
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, pretrained):
         super().__init__(num_classes)
         inner_rep = 1000
-        self.model = torchvision.models.resnet50(pretrained=True)
+        self.model = torchvision.models.resnet50(pretrained=pretrained)
         d = self.model.fc.in_features
         self.classifier = nn.Sequential(
                 nn.Linear(1000, 4096),

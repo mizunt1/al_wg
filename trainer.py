@@ -129,5 +129,5 @@ def test_per_group(model, test_loader, group_mapping_fn, group_string_map):
             total = sum(group_ids == group_id).item()
             correct_dict[group_name] += correct
             sum_dict[group_name] +=total
-    test_acc_final = {key: correct_dict[key] / sum_dict[key] for key in correct_dict}
+    test_acc_final = {key + ' test acc' : correct_dict[key] / sum_dict[key] for key in correct_dict}
     return test_acc_final
