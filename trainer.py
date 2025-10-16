@@ -79,6 +79,7 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
             
         print('epoch ' + str(epoch))    
         print('train acc '+ str(train_acc))
+        print('loss' + str(loss.detach()))
         print(test_acc_dict)
         if wandb != False:
             test_acc_dict.update({'train acc': train_acc})

@@ -46,20 +46,26 @@ def main(args):
         print('size '+ str(size))
         model = getattr(models, args.model_name)
         model = model(2, args.pretrained, args.frozen_weights)
+        if 'clip' in args.model_name.lower():
+            model = model.float()
+            img_size = 244
+            trans_celeba = transforms.Compose([transforms.PILToTensor(), transforms.Resize((img_size,img_size))])
+        else:
+            img_size = None
+            trans_celeba = transforms.Compose([transforms.PILToTensor()])
         if args.mc_drop_p != None:
             set_dropout_p(model, args.mc_drop_p)
             
         if args.data_mode == 'wb':
             # note that minority points is the number of wl + lw.
             # majority points is the number of ww + ll.
-            try:
-                training_loader, test_loader, training_data_dict, test_data_dict = waterbirds(num_minority_points,
-                                                                                              num_majority_points,
-                                                                                              batch_size=args.batch_size,
-                                                                                              metadata_path='metadata_larger.csv',
-                                                                                              root_dir='/network/scratch/m/mizu.nishikawa-toomey/waterbird_larger')
-            except:
-                continue
+            training_loader, test_loader, training_data_dict, test_data_dict = waterbirds(num_minority_points,
+                                                                                          num_majority_points,
+                                                                                          batch_size=args.batch_size,
+                                                                                          metadata_path='metadata_larger.csv',
+                                                                                          root_dir='/network/scratch/m/mizu.nishikawa-toomey/waterbird_larger', img_size=img_size)
+            #except:
+            #    continue
             waterbirds_dummy = WaterbirdsDataset()
             # train model for different data amounts and log train and test
 
@@ -69,9 +75,8 @@ def main(args):
                 group_string_map=waterbirds_dummy.group_string_map, group_key='metadata')
             # calculate some kind of UQ metric 
             # save results
-            trans = transforms.Compose([transforms.PILToTensor(), transforms.Resize((448,448))])
             root_dir = '/network/scratch/m/mizu.nishikawa-toomey'
-            blond_male = CelebA(root_dir, download=True, transform=trans, split='train_bm')
+            blond_male = CelebA(root_dir, download=True, transform=trans_celeba, split='train_bm')
             celeba = torch.utils.data.DataLoader(blond_male, batch_size=args.batch_size)
 
             ww_ent = calc_ent_per_point_batched(model, test_data_dict['ww_test'], mean=True)
@@ -91,11 +96,10 @@ def main(args):
                                                                                            num_majority_points,
                                                                                            batch_size=args.batch_size)
             root_dir = '/network/scratch/m/mizu.nishikawa-toomey'
-            trans = transforms.Compose([transforms.PILToTensor()])
-            celeba_dummy = CelebA(root_dir, download=True, transform=trans, split='train_bm')
+            celeba_dummy = CelebA(root_dir, download=True, transform=trans_celeba, split='train_bm')
             training_loaderwb, test_loaderwb, _, _ = waterbirds(1000,
                                                                 1000,
-                                                                batch_size=args.batch_size,
+                                                                batch_size=args.batch_size, img_size=img_size,
                                                                 metadata_path='metadata_larger.csv',
                                                                 root_dir='/network/scratch/m/mizu.nishikawa-toomey/waterbird_larger')
 
@@ -127,20 +131,17 @@ def main(args):
             results.to_csv(f"{dir_name}/{args.minority_prop}.csv")
 
         if args.data_mode == 'celeba_non_sp':
-            try:
-                training_loader, test_loader, training_data_dict, test_data_dict = celeba_non_sp_load(num_minority_points,
-                                                                                                      num_majority_points,
-                                                                                                      batch_size=args.batch_size)
-            except:
-                continue
+            training_loader, test_loader, training_data_dict, test_data_dict = celeba_non_sp_load(num_minority_points,
+                                                                                                  num_majority_points,
+                                                                                                  batch_size=args.batch_size,
+                                                                                                  img_size=img_size)
             root_dir = '/network/scratch/m/mizu.nishikawa-toomey'
-            trans = transforms.Compose([transforms.PILToTensor()])
-            celeba_dummy = CelebA(root_dir, download=True, transform=trans, split='train_bm')
+            celeba_dummy = CelebA(root_dir, download=True, transform=trans_celeba, split='train_bm')
             training_loaderwb, test_loaderwb, _, _ = waterbirds(1000,
                                                                 1000,
                                                                 batch_size=args.batch_size,
                                                                 metadata_path='metadata_larger.csv',
-                                                                root_dir='/network/scratch/m/mizu.nishikawa-toomey/waterbird_larger')
+                                                                root_dir='/network/scratch/m/mizu.nishikawa-toomey/waterbird_larger', img_size=img_size)
 
             waterbirds_dummy = WaterbirdsDataset()
             train_acc, test_acc, group_dict, wga = train_batched(

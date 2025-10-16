@@ -6,12 +6,14 @@ from torchvision import transforms
 from celeba import CelebA
 
 def waterbirds(num_minority_points, num_majority_points, batch_size,
-               metadata_path='metadata_larger.csv', root_dir='data/'):
+               metadata_path='metadata_larger.csv', root_dir='data/', img_size=None):
     use_cuda = True
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
+    if img_size == None:
+        img_size = 512
+        
     trans = transforms.Compose(
-        [transforms.Resize((512, 512)), transforms.ToTensor()]
-    )
+        [transforms.Resize((img_size, img_size)), transforms.ToTensor()])
     # training datasets
     split_scheme = {"wl_train":0, "lw_train": 1, "ww_train": 2, "ll_train": 3,
                     "wl_test":4, "lw_test": 5, "ww_test": 6, "ll_test": 7, "val": 8}
@@ -76,11 +78,12 @@ def waterbirds(num_minority_points, num_majority_points, batch_size,
     return training_data, test_data, training_data_dict, test_data_dict
 
 
-def celeba_load(num_minority_points, num_majority_points, batch_size, root_dir='/tmp/'):
+def celeba_load(num_minority_points, num_majority_points, batch_size, root_dir='/tmp/', img_size=None):
     # Note that minority group is blond male and non blond female
-    
-    trans = transforms.Compose([transforms.PILToTensor()])
-
+    if img_size != None:
+        trans = transforms.Compose([transforms.Resize((img_size, img_size)), transforms.PILToTensor()])
+    else:
+        trans = transforms.Compose([transforms.PILToTensor()])
     blond_male = CelebA(root_dir, download=True, transform=trans, split='train_bm')
     blond_female = CelebA(root_dir, download=True, transform=trans, split='train_bf')
     notblond_male = CelebA(root_dir, download=True, transform=trans, split='train_nbm')
@@ -125,10 +128,12 @@ def celeba_load(num_minority_points, num_majority_points, batch_size, root_dir='
 
     return training_data, test_data, training_data_dict, test_data_dict
 
-def celeba_non_sp_load(num_minority_points, num_majority_points, batch_size, root_dir='/tmp/'):
+def celeba_non_sp_load(num_minority_points, num_majority_points, batch_size, root_dir='/tmp/', img_size=None):
     # Note that minority group is blond male and non blond female
-    
-    trans = transforms.Compose([transforms.PILToTensor()])
+    if img_size != None:
+        trans = transforms.Compose([transforms.Resize((img_size, img_size)), transforms.PILToTensor()])
+    else:
+        trans = transforms.Compose([transforms.PILToTensor()])
 
     blond_male = CelebA(root_dir, download=True, transform=trans, split='train_bm')
     blond_female = CelebA(root_dir, download=True, transform=trans, split='train_bf')
