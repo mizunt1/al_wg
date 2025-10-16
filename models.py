@@ -159,10 +159,14 @@ class BayesianNetRes50U(mc_dropout.BayesianModule):
 
 class BayesianNetRes50ULarger(mc_dropout.BayesianModule):
     # https://github.com/BlackHC/BatchBALD/blob/master/src/vgg_model.py
-    def __init__(self, num_classes, pretrained):
+    def __init__(self, num_classes, pretrained, frozen_weights):
         super().__init__(num_classes)
         inner_rep = 1000
         self.model = torchvision.models.resnet50(pretrained=pretrained)
+        if frozen_weights:
+            for param in self.model.parameters():
+                param.requires_grad = False
+
         d = self.model.fc.in_features
         self.classifier = nn.Sequential(
                 nn.Linear(1000, 4096),
@@ -181,6 +185,7 @@ class BayesianNetRes50ULarger(mc_dropout.BayesianModule):
     def mc_forward_impl(self, input):
         input = self.classifier(input)
         return input
+
 
 class BayesianVGGU(mc_dropout.BayesianModule):
     # https://github.com/BlackHC/BatchBALD/blob/master/src/vgg_model.py

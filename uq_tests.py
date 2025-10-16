@@ -1,4 +1,4 @@
-from data_loading import waterbirds, celeba_load
+from data_loading import waterbirds, celeba_load, celeba_non_sp_load
 import wandb
 from tools import calc_ent_per_point_batched
 from tools import slurm_infos
@@ -14,6 +14,7 @@ from waterbirds_dataset import WaterbirdsDataset
 from celeba import CelebA
 from trainer import train_batched
 from torch.utils.data import DataLoader
+from mc_dropout import set_dropout_p
 
 def main(args):
     wandb.init(
@@ -31,13 +32,23 @@ def main(args):
     # need to loop through datasize
 
     #datasize = [50, 100, 150, 200, 400, 600, 800, 1000, 1250, 1500, 1750, 2000, 2500, 3000, 4000]
-    datasize = [1000, 3000, 8000]
+    if args.data_mode == 'celeba':
+        datasize = [200, 500, 1000, 1500, 2000, 4000, 6000, 8000]
+    elif args.data_mode == 'wb':
+        datasize = [200, 500, 1000, 1500, 2000]
+    elif args.data_mode == 'celeba_non_sp':
+        datasize = [200, 1000, 2000, 4000, 6000]
+    else:
+        pass
     for size in datasize:
         num_minority_points = int(size*args.minority_prop)
         num_majority_points = size-num_minority_points
         print('size '+ str(size))
         model = getattr(models, args.model_name)
-        model = model(2)
+        model = model(2, args.pretrained, args.frozen_weights)
+        if args.mc_drop_p != None:
+            set_dropout_p(model, args.mc_drop_p)
+            
         if args.data_mode == 'wb':
             # note that minority points is the number of wl + lw.
             # majority points is the number of ww + ll.
@@ -56,7 +67,6 @@ def main(args):
                 model, num_epochs=args.num_epochs, lr=args.lr, num_groups=4,
                 dataloader=training_loader, dataloader_test=test_loader, group_mapping_fn=waterbirds_dummy.group_mapping_fn,
                 group_string_map=waterbirds_dummy.group_string_map, group_key='metadata')
-        
             # calculate some kind of UQ metric 
             # save results
             trans = transforms.Compose([transforms.PILToTensor(), transforms.Resize((448,448))])
@@ -112,17 +122,63 @@ def main(args):
             results = pd.concat([pd.DataFrame(to_log, index=[0]), results],ignore_index=True)
             wandb.log(to_log)
 
-            dir_name = f"{args.save_dir}/{args.seed}"
+            dir_name = f"{args.data_mode}/{args.save_dir}/{args.seed}"
             os.makedirs(dir_name, exist_ok=True) 
             results.to_csv(f"{dir_name}/{args.minority_prop}.csv")
-    
+
+        if args.data_mode == 'celeba_non_sp':
+            try:
+                training_loader, test_loader, training_data_dict, test_data_dict = celeba_non_sp_load(num_minority_points,
+                                                                                                      num_majority_points,
+                                                                                                      batch_size=args.batch_size)
+            except:
+                continue
+            root_dir = '/network/scratch/m/mizu.nishikawa-toomey'
+            trans = transforms.Compose([transforms.PILToTensor()])
+            celeba_dummy = CelebA(root_dir, download=True, transform=trans, split='train_bm')
+            training_loaderwb, test_loaderwb, _, _ = waterbirds(1000,
+                                                                1000,
+                                                                batch_size=args.batch_size,
+                                                                metadata_path='metadata_larger.csv',
+                                                                root_dir='/network/scratch/m/mizu.nishikawa-toomey/waterbird_larger')
+
+            waterbirds_dummy = WaterbirdsDataset()
+            train_acc, test_acc, group_dict, wga = train_batched(
+                model, num_epochs=args.num_epochs, lr=args.lr, num_groups=4,
+                dataloader=training_loader, dataloader_test=test_loader, group_mapping_fn=celeba_dummy.group_mapping_fn,
+                group_string_map=celeba_dummy.group_string_map, group_key='metadata')
+            mb_ent = calc_ent_per_point_batched(model, DataLoader(test_data_dict['mb_test'], batch_size=args.batch_size),
+                                                mean=True)
+            fb_ent = calc_ent_per_point_batched(model, DataLoader(test_data_dict['fb_test'], batch_size=args.batch_size),
+                                                mean=True)
+            mnb_ent = calc_ent_per_point_batched(model, DataLoader(test_data_dict['mnb_test'], batch_size=args.batch_size),
+                                                 mean=True)
+            fnb_ent = calc_ent_per_point_batched(model, DataLoader(test_data_dict['fnb_test'], batch_size=args.batch_size),
+                                                 mean=True)
+            wb = calc_ent_per_point_batched(model, test_loaderwb, mean=True)
+
+            to_log = {'data size': size, 'minority prop': args.minority_prop,
+                      'mb_ent': mb_ent, 'fb_ent': fb_ent, 'mnb_ent': mnb_ent, 'fnb_ent': fnb_ent, 'wb ent': wb,
+                      'train_acc': train_acc,
+                      'wga': wga}
+            to_log.update(test_acc)
+            results = pd.concat([pd.DataFrame(to_log, index=[0]), results],ignore_index=True)
+            wandb.log(to_log)
+
+            dir_name = f"{args.data_mode}/{args.save_dir}/{args.seed}"
+            os.makedirs(dir_name, exist_ok=True) 
+            results.to_csv(f"{dir_name}/{args.minority_prop}.csv")
+
 if __name__ == "__main__":
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--num_epochs', type=int, default=30)
     parser.add_argument('--batch_size', type=int, default=30)
+    parser.add_argument('--frozen_weights', default=False, action='store_true')
+    parser.add_argument('--pretrained', default=False, action='store_true')
     parser.add_argument('--minority_prop', type=float, default=0.2)
+    parser.add_argument('--mc_drop_p', type=float, default=None)
     parser.add_argument('--lr', type=float, default=1e-5)
     parser.add_argument('--weight_decay', type=float, default=0)
     parser.add_argument('--model_name', type=str, default='BayesianNetRes50ULarger')

@@ -131,7 +131,8 @@ class WaterbirdsDataset(WILDSDataset):
         ll =  (metadata[:, background] == land) & (metadata[:, label] == land)
         wl =  (metadata[:, background] == land) & (metadata[:, label] == water)
         lw =  (metadata[:, background] == water) & (metadata[:, label] == land)
-        groups = ww + ll + wl*2 + lw*3
+        groups = torch.zeros(len(metadata))
+        groups = groups + ll + wl*2 + lw*3
         return groups
 
 
