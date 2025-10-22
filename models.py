@@ -216,6 +216,34 @@ class BayesianNetClip(mc_dropout.BayesianModule):
         input = self.classifier(input)
         return input
 
+class BayesianNetDino(mc_dropout.BayesianModule):
+    def __init__(self, num_classes, pretrained, frozen_weights):
+        super().__init__(num_classes)
+        inner_rep = 1000
+        vits8 = torch.hub.load('facebookresearch/dino:main', 'dino_vits8')
+        self.model = vits8
+        if frozen_weights:
+            for param in self.model.parameters():
+                param.requires_grad = False
+        d = 384
+        self.classifier = nn.Sequential(
+                nn.Linear(d, 4096),
+                nn.ReLU(True),
+                mc_dropout.MCDropout(),
+                nn.Linear(4096, 4096),
+                nn.ReLU(True),
+                mc_dropout.MCDropout(),
+                nn.Linear(4096, num_classes),
+            )
+    def deterministic_forward_impl(self, x):
+        x = self.model(x)
+        x = x.view(x.size(0), -1)
+        return x
+    
+    def mc_forward_impl(self, input):
+        input = self.classifier(input)
+        return input
+
 
 class BayesianVGGU(mc_dropout.BayesianModule):
     # https://github.com/BlackHC/BatchBALD/blob/master/src/vgg_model.py
