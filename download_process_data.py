@@ -23,6 +23,7 @@ def score_ordering_sim(dataframe_test, dataframe_ent):
     order_test = {}
     order_ent = {}
     test_similarity = {}
+    assert set(dataframe_test.keys()) == set(dataframe_ent.keys())
     for row in dataframe_test.iterrows():
         sorted_column_names = tuple(row[1].sort_values(ascending=False).index.tolist())
         order_test[row[0]]= sorted_column_names
@@ -115,6 +116,7 @@ def process_results(runs, remove_column='wb ent', column_rename_ent={'mnb_ent':0
         min_prop = json.loads(run_.json_config)['minority_prop']['value']
         data_mode = json.loads(run_.json_config)['data_mode']['value']
         results_ordering, test_similarity = score_ordering_sim(test, ent)
+        
         # for one set of results, we have agreement in ordering. 
         results['ordering_agreement'] = results.index.map(results_ordering)
         results['test min distance'] = results.index.map(test_similarity)
@@ -143,7 +145,8 @@ def plot(axs, data_in, data2_in, threshold=0.01):
         ax.set_ylim(-1.1, 1.1)
         ax.set_xlim(100, 2000)
 
-wb = True
+wb = False
+threshold = 0.02
 if wb:
     title = 'waterbirds'
     column_rename_ent = {'ww_ent':0,'ll_ent': 1,'lw_ent':2,'wl_ent':3}
@@ -156,7 +159,7 @@ if wb:
 else:
     title = 'celeba'
     column_rename_ent={'mnb_ent':0,'fb_ent': 1,'fnb_ent':2,'mb_ent':3}
-    column_rename_test = {'ww test acc':0,'ll test acc': 1,'lw test acc':2,'wl test acc':3}
+    column_rename_test = {'mnb test acc':0,'fb test acc': 1,'fnb test acc':2,'mb test acc':3}
     remove_column='wb ent'
     dino_smaller_runs = 'mizunt/min_prop_celeba_dino_smaller_size2'
     dino_larger_runs = 'mizunt/min_prop_celeba_dino'
@@ -176,7 +179,7 @@ fig, axs = plt.subplots(nrows=4, ncols=2, figsize=(6, num_plots * 2))
 fig.subplots_adjust(bottom=0.1)
 fig.suptitle(title, fontsize=16, fontweight='bold')
 
-plot(axs, run1_results, run2_results)
+plot(axs, run1_results, run2_results, threshold=threshold)
 plt.show()
 
 
