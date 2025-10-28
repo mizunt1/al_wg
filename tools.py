@@ -84,6 +84,15 @@ def plot_dictionary(data):
     plt.legend()
     plt.show()
     
+def compute_entropy(log_probs_N_K_C: torch.Tensor) -> torch.Tensor:
+    #https://github.com/BlackHC/active_learning_redux/blob/master/batchbald_redux/joint_entropy.py#L40
+    N, K, C = log_probs_N_K_C.shape
+    mean_log_probs_n_C = torch.logsumexp(log_probs_N_K_C, dim=1) - math.log(K)
+    nats_n_C = mean_log_probs_n_C * torch.exp(mean_log_probs_n_C)
+    nats_n_C[torch.isnan(nats_n_C)] = 0.0
+    entropies = -torch.sum(nats_n_C, dim=1)
+    return entropies
+    
 def entropy_drop_out(model, x, transforms=None, num_classes=2, num_models=100):
     if transforms is not None:
         x = transforms(x)
@@ -91,11 +100,29 @@ def entropy_drop_out(model, x, transforms=None, num_classes=2, num_models=100):
     out = F.log_softmax(out, dim=2)
     N, K, C = out.shape
     log_probs_N_K_C = out.to(torch.double)
-    mean_log_probs_n_C = torch.logsumexp(log_probs_N_K_C, dim=1) - math.log(K)
-    nats_n_C = mean_log_probs_n_C * torch.exp(mean_log_probs_n_C)
-    nats_n_C[torch.isnan(nats_n_C)] = 0.0
-    entropies = -torch.sum(nats_n_C, dim=1)
+    entropies = compute_entropy(log_probs_N_K_C)
     return entropies # [N]
+
+def compute_conditional_entropy(log_probs_N_K_C: torch.Tensor) -> torch.Tensor:
+    N, K, C = log_probs_N_K_C.shape
+    entropies_N = torch.empty(N, dtype=torch.double)
+    log_probs_N_K_C = log_probs_N_K_C.to(torch.double)
+    nats_N_K_C = log_probs_N_K_C * torch.exp(log_probs_N_K_C)
+    nats_N_K_C[torch.isnan(nats_N_K_C)] = 0.0
+    entropies_N = -torch.sum(nats_N_K_C, dim=(1, 2)) / K
+    return entropies_N
+
+def mi_drop_out(model, x, transforms=None, num_classes=2, num_models=100):
+    #https://github.com/BlackHC/active_learning_redux/blob/master/batchbald_redux/joint_entropy.py#L15
+    if transforms is not None:
+        x = transforms(x)
+    out = model(x, k=num_models).detach().cpu()
+    out = F.log_softmax(out, dim=2)
+    N, K, C = out.shape
+    log_probs_N_K_C = out.to(torch.double)
+    scores_N = -compute_conditional_entropy(log_probs_N_K_C)
+    scores_N += compute_entropy(log_probs_N_K_C)
+    return scores_N
 
 def cross_entropy(model, x, y):
     out = model(x)
@@ -127,7 +154,7 @@ def calc_ent_batched(model, dataloader, num_models=100):
         num_points += len(target)
     return (total_ent/num_points).cpu().item(), (total_xent/num_points).cpu().item(), vars_.cpu().item()
 
-def calc_ent_per_point_batched(model, dataloader, num_models=100, mean=False):
+def calc_ent_per_point_batched(model, dataloader, num_models=100, mean=False, mi=False):
     use_cuda = True
     num_points = 0
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -139,7 +166,10 @@ def calc_ent_per_point_batched(model, dataloader, num_models=100, mean=False):
 
         data = data.to(device).float()
         #data = data.reshape(-1, 3*28*28)
-        out = entropy_drop_out(model, data, num_models=num_models)
+        if mi:
+            out = mi_drop_out(model, data, num_models=num_models)
+        else:
+            out = entropy_drop_out(model, data, num_models=num_models)
         ents.extend(out.tolist())
     if mean:
         return sum(ents)/len(ents)

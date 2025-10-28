@@ -106,6 +106,7 @@ class WaterbirdsDataset(WILDSDataset):
         self.use_rep = use_rep
         super().__init__(root_dir, download, split_scheme)
         self.group_string_map = {'ww': 0, 'll': 1, 'wl': 2, 'lw': 3}
+        self.group_int_map = {value: key for key, value in self.group_string_map.items()}
 
     def get_input(self, idx):
        """
@@ -133,7 +134,7 @@ class WaterbirdsDataset(WILDSDataset):
         lw =  (metadata[:, background] == water) & (metadata[:, label] == land)
         groups = torch.zeros(len(metadata))
         groups = groups + ll + wl*2 + lw*3
-        return groups
+        return groups.int()
 
 
 def count_groups(data):
@@ -170,7 +171,6 @@ def count_groups_dataloader(test_loader):
         data = data_dict['data']
         y = data_dict['target']
         meta = data_dict['metadata']
-        pseudo_g = data_dict['group_id']
         ll = sum((meta[:,background] == land) & (meta[:,label] == land))
         ww = sum((meta[:,background] == water) & (meta[:,label] == water))
         lw = sum((meta[:,background] == water) & (meta[:,label] == land))

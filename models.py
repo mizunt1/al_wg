@@ -116,34 +116,17 @@ class BayesianNetFc(mc_dropout.BayesianModule):
         input = self.fc4(input)
         return input
 
-class BayesianNetRes50F(mc_dropout.BayesianModule):
-    # https://github.com/BlackHC/BatchBALD/blob/master/src/mnist_model.py
-    def __init__(self, num_classes):
-        super().__init__(num_classes)
-        inner_rep = 1000
-        self.model = torchvision.models.resnet50(pretrained=True)
-        for param in self.model.parameters():
-            param.requires_grad = False
-        d = self.model.fc.in_features
-        self.model.fc = nn.Linear(d, inner_rep)
-        self.classifier = nn.Sequential(
-            mc_dropout.MCDropout(),
-            nn.Linear(inner_rep, num_classes))
-
-    def deterministic_forward_impl(self, x):
-        x = self.model(x)
-        return x
-    
-    def mc_forward_impl(self, input):
-        input = self.classifier(input)
-        return input
 
 class BayesianNetRes50U(mc_dropout.BayesianModule):
     # https://github.com/BlackHC/BatchBALD/blob/master/src/mnist_model.py
-    def __init__(self, num_classes, pretrained):
+    def __init__(self, num_classes, pretrained, frozen_weights):
         super().__init__(num_classes)
         inner_rep = 1000
         self.model = torchvision.models.resnet50(pretrained=pretrained)
+        if frozen_weights:
+            for param in self.model.parameters():
+                param.requires_grad = False
+
         d = self.model.fc.in_features
         self.model.fc = nn.Linear(d, inner_rep)
         self.classifier = nn.Sequential(

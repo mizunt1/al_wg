@@ -13,7 +13,8 @@ from early_stopping import EarlyStopping
 def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=None,
                   weight_decay=0, lr=0.001, flatten=False, label_wb='', gdro=False, num_groups=None,
                   norm_dict=None, model_checkpoint_path='/network/scratch/m/mizu.nishikawa-toomey/waterbird_cp/',
-                  wandb=False, group_mapping_fn=None, group_string_map={}, group_key='metadata'):
+                  wandb=False, group_mapping_fn=None, group_string_map={}, group_key='metadata',
+                  true_group_in_loss=True):
     now = datetime.now() 
     formatted_full = now.strftime("%A, %B %d, %Y %H:%M:%S")
     path = model_checkpoint_path + formatted_full + 'model.pt'
@@ -34,7 +35,13 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
             target = data_dict['target']
             pseudo_g = data_dict['source_id']
             true_group = data_dict[group_key]
+            group = group_mapping_fn(true_group)
             data, target = data.to(device), target.to(device)
+            if true_group_in_loss:
+                group_in_loss = group
+            else:
+                group_in_loss = pseudo_g
+                    
             optimizer.zero_grad()
             if flatten:
                 data = data.reshape(-1, 3*28*28)
@@ -53,8 +60,8 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
                     normalize_loss=False,
                     btl=False,
                     min_var_weight=0)
+                loss = loss_computer.loss(output, target, group_in_loss, True)
 
-                loss = loss_computer.loss(output, target, pseudo_g, True)
             else:
                 loss_fn = nn.CrossEntropyLoss()
                 loss = loss_fn(output, target)
@@ -63,7 +70,7 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
             total_correct += sum(out == target)
             total_points += len(target)
             if epoch == 0:
-                groups.extend(pseudo_g)
+                groups.extend(group_in_loss)
 
         train_acc = (total_correct / total_points).cpu().item()
         test_acc_dict = test_per_group(model, dataloader_test,

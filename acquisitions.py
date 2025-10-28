@@ -96,6 +96,23 @@ class Entropy(ActiveLearningAcquisitions):
         greatest_ent_points = [item[1] for item in sorted_by_ent[:self.al_size]]
         return greatest_ent_points
 
+class MI(ActiveLearningAcquisitions):
+    def __init__(self, al_data=None, al_size=None):
+        self.al_data = al_data
+        self.al_size = al_size
+        self.mi = None
+        self.indices = None
+
+    def information_for_acquisition(self, model):
+        pool_loader = self.al_data.get_pool_loader(64)
+        self.indices = self.al_data.pool.indices
+        self.mi = calc_ent_per_point_batched(model, pool_loader, mi=True)
+
+    def return_indices(self):
+        sorted_by_ent = sorted(zip(self.mi, self.indices), reverse=True)
+        greatest_ent_points = [item[1] for item in sorted_by_ent[:self.al_size]]
+        return greatest_ent_points
+
 
 class EntropyPerGroupOrdered(ActiveLearningAcquisitions):
     def __init__(self, al_data=None, al_size=None):

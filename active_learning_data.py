@@ -8,8 +8,12 @@ import torch
 
 class ActiveLearningDataGroups():
     def __init__(self, datasets, dataset_test, num_workers=4, batch_size=64):
-        self.datasets = datasets
-        self.dataset = torch.utils.data.ConcatDataset(self.datasets)
+        if isinstance(datasets, list):
+            self.dataset_list = datasets
+            self.dataset = torch.utils.data.ConcatDataset(self.datasets)
+            self._create_group_indices()
+        else:
+            self.dataset = datasets
         self.dataset_test = dataset_test
         self.pool_mask = np.full((len(self.dataset)), True)
         self.train_mask = np.full((len(self.dataset)), False)
@@ -19,7 +23,6 @@ class ActiveLearningDataGroups():
         self.batching = False
         self.num_workers = num_workers
         self._update_indices()
-        self._create_group_indices()
         self.batch_size = batch_size
 
     def _update_indices(self):
@@ -27,7 +30,7 @@ class ActiveLearningDataGroups():
         self.train.indices = np.nonzero(self.train_mask)[0]
         
     def _create_group_indices(self):
-        start_idxs = np.cumsum([len(data) for data in self.datasets])
+        start_idxs = np.cumsum([len(data) for data in self.dataset_list])
         start_idxs[-1] = start_idxs[-1]-1
         start_idxs = np.insert(start_idxs,0,0)
         self.group_idx = start_idxs

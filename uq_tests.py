@@ -33,11 +33,11 @@ def main(args):
 
     #datasize = [50, 100, 150, 200, 400, 600, 800, 1000, 1250, 1500, 1750, 2000, 2500, 3000, 4000]
     if args.data_mode == 'celeba':
-        datasize = [200, 500, 1000, 1500, 2000, 4000, 6000, 8000]
+        datasize = [50, 100, 150, 200, 250, 300, 450, 500, 600, 700, 900, 1200, 1400, 2000]
     elif args.data_mode == 'wb':
-        datasize = [200, 500, 1000, 1500, 2000]
+        datasize = [50, 100, 150, 200, 250, 300, 450, 500, 600, 700, 900, 1200, 1400, 2000]
     elif args.data_mode == 'celeba_non_sp':
-        datasize = [200, 1000, 2000, 4000, 6000]
+        datasize = [50, 100, 150, 200, 250, 300, 450, 500, 600, 700, 900, 1200, 1400, 2000]
     else:
         pass
     for size in datasize:
@@ -93,7 +93,7 @@ def main(args):
             wandb.log(to_log)
         if args.data_mode == 'celeba':
             training_loader, test_loader, training_data_dict, test_data_dict = celeba_load(num_minority_points,
-                                                                                           num_majority_points,
+                                                                                           num_majority_points, img_size=img_size,
                                                                                            batch_size=args.batch_size)
             root_dir = '/network/scratch/m/mizu.nishikawa-toomey'
             celeba_dummy = CelebA(root_dir, download=True, transform=trans_celeba, split='train_bm')
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_epochs', type=int, default=30)
     parser.add_argument('--batch_size', type=int, default=30)
     parser.add_argument('--frozen_weights', default=False, action='store_true')
-    parser.add_argument('--pretrained', default=False, action='store_true')
+    parser.add_argument('--pretrained', default=True, action='store_false')
     parser.add_argument('--minority_prop', type=float, default=0.2)
     parser.add_argument('--mc_drop_p', type=float, default=None)
     parser.add_argument('--lr', type=float, default=1e-5)

@@ -6,7 +6,7 @@ import sys
 import torch
 import models
 from active_learning_data import ActiveLearningDataGroups
-from tools import calc_ent_batched, calc_ent_per_group_batched, plot_dictionary, log_dict
+from tools import calc_ent_batched, calc_ent_per_point_batched, plot_dictionary, log_dict
 from pprint import pprint
 import wandb
 from torch.utils.data import DataLoader, ConcatDataset, Subset
@@ -14,9 +14,11 @@ import random
 from tools import slurm_infos
 from wilds import get_dataset
 from wilds.common.data_loaders import get_train_loader
-from waterbirds_dataset import WaterbirdsDataset, train_batched, test_batched, test_per_group
+from waterbirds_dataset import WaterbirdsDataset
+from trainer import train_batched, test_batched
 from acquisitions import (Random, UniformGroups,
-                          EntropyPerGroup, AccuracyPerGroup, Entropy, EntropyUniformGroups)
+                          EntropyPerGroup, AccuracyPerGroup, Entropy, EntropyUniformGroups, MI)
+from data_loading import waterbirds
 
 # to turn off wandb, export WANDB_MODE=disabled
 def main(args):
@@ -42,7 +44,7 @@ def main(args):
             norm_dict = pickle.load(f)
     else:
         trans = transforms.Compose(
-            [transforms.Resize((448, 448)), transforms.ToTensor()]
+            [transforms.Resize((512, 512)), transforms.ToTensor()]
         )
         norm_dict = None
     # training datasets
@@ -51,82 +53,51 @@ def main(args):
     split_names = {"g0_train":'g0_train', "g1_train": 'g1_train', "g2_train": 'g2_train',
                    "g3_train": 'g3_train', "ww_test":"ww_test", "wl_test": "wl_test","ll_test": "ll_test",
                    "lw_test": "lw_test", "test": "test"}
-
-    dataset = WaterbirdsDataset(version='1.0', root_dir='data/', download=True,
+    img_size = 512
+    wb_dataset = WaterbirdsDataset(version='1.0', root_dir='data/', download=True,
                                 split_scheme=split_scheme, split_names=split_names,
                                 metadata_name=args.data_mode, use_rep=args.use_rep)
-    training0_data = dataset.get_subset(
-        "g0_train", transform=trans)
-    training1_data = dataset.get_subset(
-        "g1_train",
-        transform=trans)
-    training2_data = dataset.get_subset(
-        "g2_train",
-        transform=trans)
-    training3_data = dataset.get_subset(
-        "g3_train",
-        transform=trans)
-    testww_data = torch.utils.data.DataLoader(
-        dataset.get_subset(
-            "ww_test",
-            transform=trans), batch_size=args.batch_size, **kwargs)
-
-    testwl_data = torch.utils.data.DataLoader(
-        dataset.get_subset(
-            "wl_test",
-            transform=trans), batch_size=args.batch_size, **kwargs)
-    testll_data = torch.utils.data.DataLoader(
-        dataset.get_subset(
-        "ll_test", transform=trans), batch_size=args.batch_size, **kwargs)
-    testlw_data = torch.utils.data.DataLoader(
-        dataset.get_subset(
-        "lw_test",
-        transform=trans), batch_size=args.batch_size, **kwargs)
-    dataset_test = dataset.get_subset(
-        "test",
-        transform=trans)
-    dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=args.batch_size, **kwargs)
-    group_to_log1 = 0
-    group_to_log2 = 3
+    training_loader, test_loader, training_data_dict, test_data_dict = waterbirds(args.num_minority_points,
+                                                                                  args.num_majority_points,
+                                                                                  batch_size=args.batch_size,
+                                                                                  metadata_path='metadata_larger.csv',
+                                                                                  root_dir='/network/scratch/m/mizu.nishikawa-toomey/waterbird_larger', img_size=img_size)
     model = getattr(models, args.model_name)
-    if args.balanced:
-        data_train = [training0_data, training1_data]
-    elif args.maj_group_only:
-        data_train = [training1_data, training2_data, training3_data]
-    else:
-        data_train = [training0_data, training1_data, training2_data, training3_data]
+    model = model(2, args.pretrained, args.frozen_weights)
         
-    num_groups = len(data_train)
+    num_groups = len(training_data_dict)
     samples_per_group = int(args.al_size / num_groups)
     if args.train_all_data:
-        model = model(2)
-        dataset = ConcatDataset(data_train)
+        model = model(2, args.pretrained, args.frozen_weights)
+        dataset = training_loader.dataset
         if args.size != -1:
             list_idx = [i for i in range(len(dataset))]
             items = random.sample(list_idx, args.size)
             dataset = Subset(dataset, items)
         dataloader_train = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
         proportion_correct_train, proportion_correct_test, group_dict_train, wga = train_batched(
-                    model=model, dataloader=dataloader_train,
-            dataloader_test=dataloader_test, lr=args.lr, num_epochs=args.num_epochs,
-            num_groups=num_groups, wandb=wandb, gdro=args.gdro, weight_decay=args.weight_decay)
+            model, num_epochs=args.num_epochs, lr=args.lr, num_groups=4,
+                dataloader=training_loader, dataloader_test=test_loader, group_mapping_fn=wb_dataset.group_mapping_fn,
+                group_string_map=wb_dataset.group_string_map, group_key='metadata', gdro=args.gdro)
         wandb.log({'num points': len(dataset)})
         sys.exit()
     group_dict = {key: samples_per_group for key in range(num_groups)}
-
-    al_data = ActiveLearningDataGroups(data_train, dataset_test, 2, args.batch_size)
+    
+    al_data = ActiveLearningDataGroups(training_loader.dataset, test_loader.dataset, 2, args.batch_size)
     method_map = {
         'random': Random,
         'uniform_groups': UniformGroups,
         'entropy_per_group': EntropyPerGroup,
         'accuracy': AccuracyPerGroup,
         'entropy': Entropy,
+        'mi': MI,
         'entropy_uniform_groups': EntropyUniformGroups}
 
     kwargs_map = {'random': {'al_data': al_data, 'al_size': args.al_size},
                   'uniform_groups': {'al_data': al_data, 'group_proportions': group_dict},
                   'entropy_per_group': {'al_data': al_data, 'al_size':args.al_size},
                   'entropy': {'al_data': al_data, 'al_size': args.al_size},
+                  'mi': {'al_data': al_data, 'al_size': args.al_size},
                   'accuracy': {'al_data': al_data, 'al_size': args.al_size},
                   'entropy_uniform_groups':{'al_data': al_data, 'al_size': args.al_size,
                                             'group_proportions': group_dict}}
@@ -142,14 +113,16 @@ def main(args):
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
         model = getattr(models, args.model_name)
-        model = model(2)
+        model = model(2, args.pretrained, args.frozen_weights)
         dataloader_train, dataloader_test = al_data.get_train_and_test_loader(
             batch_size=args.batch_size)
         num_points = len(al_data.train.indices)
         proportion_correct_train, proportion_correct_test, group_dict_train, wga = train_batched(
             model=model, dataloader=dataloader_train,
             dataloader_test=dataloader_test, lr=args.lr, num_epochs=args.num_epochs,
-            num_groups=num_groups, norm_dict=norm_dict, weight_decay=args.weight_decay)
+            num_groups=num_groups, norm_dict=norm_dict, weight_decay=args.weight_decay,
+            group_mapping_fn=wb_dataset.group_mapping_fn, gdro=args.gdro,
+            group_string_map=wb_dataset.group_string_map)
         # using model get info for acquisition function
         print('dict groups in train', group_dict_train)
         if args.acquisition in ['random', 'uniform_groups']:
@@ -157,6 +130,8 @@ def main(args):
         elif args.acquisition == 'entropy_per_group':
             acquisition_method.information_for_acquisition(model, num_groups)
         elif args.acquisition == 'entropy':
+            acquisition_method.information_for_acquisition(model)
+        elif args.acquisition == 'mi':
             acquisition_method.information_for_acquisition(model)
         elif args.acquisition == 'accuracy':
             acquisition_method.information_for_acquisition(model, indices, num_groups, k=3)
@@ -169,24 +144,20 @@ def main(args):
         indices = acquisition_method.return_indices()
         al_data.acquire_with_indices(indices)
         # compute metrics and logging
-        entww, _, varww = calc_ent_batched(model, testww_data, num_models=100)
-        entwl, _, varwl = calc_ent_batched(model, testwl_data, num_models=100)
-        entll, _, varll = calc_ent_batched(model, testll_data, num_models=100)
-        entlw, _, varlw = calc_ent_batched(model, testlw_data, num_models=100)
+        if args.acquisition == 'mi':
+            mi = True
+        ww_ent = calc_ent_per_point_batched(model, test_data_dict['ww_test'], mean=True, mi=mi)
+        wl_ent = calc_ent_per_point_batched(model, test_data_dict['wl_test'], mean=True, mi=mi)
+        ll_ent = calc_ent_per_point_batched(model, test_data_dict['ll_test'], mean=True, mi=mi)
+        lw_ent = calc_ent_per_point_batched(model, test_data_dict['lw_test'], mean=True, mi=mi)
         to_log = {'train_acc': proportion_correct_train,
                   'num points':num_points,
-                  'g0 points': group_dict_train[group_to_log1],
-                  'g1 points': group_dict_train[group_to_log2],
-                  'entww': entww,
-                  'entwl': entwl,
-                  'entll': entll,
-                  'entlw': entlw,
-                  'varww': varww,
-                  'varwl': varwl,
-                  'varll': varll,
-                  'varlw': varlw,
+                  'ww ent': ww_ent,
+                  'wl ent': wl_ent,
+                  'll ent': ll_ent,
+                  'lw ent': lw_ent,
                   'wga': wga}
-        to_log.update({'g' + str(key) + ' points' : value for key, value in group_dict_train.items()})
+        to_log.update({wb_dataset.group_int_map[key] + ' in train' : value for key, value in group_dict_train.items()})
         if isinstance(proportion_correct_test, dict):
             to_log.update(proportion_correct_test)
         else:
@@ -201,23 +172,27 @@ if __name__ == "__main__":
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--num_minority_points', type=int, default=500)
+    parser.add_argument('--num_majority_points', type=int, default=2000)
     parser.add_argument('--al_iters', type=int, default=15)
     parser.add_argument('--al_size', type=int, default=50)
     parser.add_argument('--num_epochs', type=int, default=30)
     parser.add_argument('--batch_size', type=int, default=30)
     parser.add_argument('--size', type=int, default=-1)
-    parser.add_argument('--lr', type=float, default=1e-5)
+    parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--weight_decay', type=float, default=0)
     parser.add_argument('--acquisition', type=str, default='random')
-    parser.add_argument('--model_name', type=str, default='BayesianNetRes50U')
+    parser.add_argument('--model_name', type=str, default='BayesianNetRes50ULarger')
     parser.add_argument('--start_acquisition', type=str, default='random')
-    parser.add_argument('--project_name', type=str, default='al_wg')
+    parser.add_argument('--project_name', type=str, default='al dino vs resnet')
     parser.add_argument('--data_mode', type=str, default='metadata_v7.csv')
     parser.add_argument('--use_rep', default=False, action='store_true')
     parser.add_argument('--gdro', default=False, action='store_true')
     parser.add_argument('--train_all_data', default=False, action='store_true')
     parser.add_argument('--balanced', default=False, action='store_true')
     parser.add_argument('--maj_group_only', default=False, action='store_true')
+    parser.add_argument('--frozen_weights', default=False, action='store_true')
+    parser.add_argument('--pretrained', default=False, action='store_true')
     
     args = parser.parse_args()
 
