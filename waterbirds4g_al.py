@@ -35,32 +35,25 @@ def main(args):
     to_log = collections.defaultdict(list)
     log_term_log = collections.defaultdict(list)
     if args.data_mode == 'wb':
-        split_scheme = {"g0_train":0, "g1_train": 1,"g2_train": 2, "g3_train": 3,
-                        "ww_test":4, "wl_test": 5,"ll_test": 6, "lw_test": 7, 'test': 8}
-        split_names = {"g0_train":'g0_train', "g1_train": 'g1_train', "g2_train": 'g2_train',
-                       "g3_train": 'g3_train', "ww_test":"ww_test", "wl_test": "wl_test",
-                       "ll_test": "ll_test", "lw_test": "lw_test", "test": "test"}
-        img_size = 512
-        dataset = WaterbirdsDataset(version='1.0', root_dir='data/', download=True,
-                                    split_scheme=split_scheme, split_names=split_names,
-                                    metadata_name='metadata_v7.csv')
         if args.data_wo_sources:
-            training_data_dict, test_data_dict = waterbirds(args.num_minority_points,
+            dataset, training_data_dict, test_data_dict = waterbirds(args.num_minority_points,
                                                             args.num_majority_points,
                                                             metadata_path='metadata_larger.csv',
                                                             root_dir="/network/scratch/m/"
-                                                            "mizu.nishikawa-toomey/waterbird_larger",
-                                                            img_size=img_size)
+                                                            "mizu.nishikawa-toomey/waterbird_larger")
+                                                            
             true_group_in_loss = True
         else:
-            training_data_dict, test_data_dict = waterbirds_n_sources(args.num_minority_points,
+            dataset, training_data_dict, test_data_dict = waterbirds_n_sources(args.num_minority_points,
                                                                       args.num_majority_points,
                                                                       n_maj_sources=3,
                                                                       metadata_path='metadata_larger.csv',
                                                                       root_dir="/network/scratch/m/"
-                                                                      "mizu.nishikawa-toomey/waterbird_larger",
-                                                                      img_size=img_size)
+                                                                      "mizu.nishikawa-toomey/waterbird_larger")
             true_group_in_loss = False
+
+    if args.data_mode == 'celeba':
+        
     model = getattr(models, args.model_name)
     model = model(2, args.pretrained, args.frozen_weights)
 

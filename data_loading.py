@@ -8,7 +8,7 @@ import numpy as np
 import collections
 
 def waterbirds(num_minority_points, num_majority_points,
-               metadata_path='metadata_larger.csv', root_dir='data/', img_size=None):
+               metadata_path='metadata_larger.csv', root_dir='data/', img_size=512):
     use_cuda = True
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
     if img_size == None:
@@ -55,7 +55,7 @@ def waterbirds(num_minority_points, num_majority_points,
                           'ww_train': data2, 'll_train': data3}
     test_data_dict = {'ww_test': testww_data, 'll_test': testll_data,
                       'lw_test': testlw_data, 'wl_test': testwl_data, 'val': val_data}
-    return training_data_dict, test_data_dict
+    return dataset, training_data_dict, test_data_dict
 
 def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources=3,
                metadata_path='metadata_larger.csv', root_dir='data/', img_size=None):
@@ -112,7 +112,7 @@ def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources
         data_sources[i] = one_source
     test_data_dict = {'ww_test': testww_data, 'll_test': testll_data,
                       'lw_test': testlw_data, 'wl_test': testwl_data, 'val': val_data}
-    return data_sources, test_data_dict
+    return dataset, data_sources, test_data_dict
 
 
 def celeba_load(num_minority_points, num_majority_points, batch_size, root_dir='/tmp/', img_size=None):
