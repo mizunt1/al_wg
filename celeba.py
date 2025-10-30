@@ -71,6 +71,7 @@ class CelebA(VisionDataset):
         target_type: Union[list[str], str] = "attr",
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
+        sample_idx: list =[],
         download: bool = False,
         source_id: int =  -1,
     ) -> None:
@@ -91,14 +92,14 @@ class CelebA(VisionDataset):
             raise RuntimeError("Dataset not found or corrupted. You can use download=True to download it")
 
         split_map = {
-            "train_bm": 3,
-            "train_bf": 4,
-            "train_nbm": 5,
-            "train_nbf": 6,
-            "test_bm": 7,
-            "test_bf": 8,
-            "test_nbm": 9,
-            "test_nbf": 10,
+            "train_mb": 3,
+            "train_fb": 4,
+            "train_mnb": 5,
+            "train_fnb": 6,
+            "test_mb": 7,
+            "test_fb": 8,
+            "test_mnb": 9,
+            "test_fnb": 10,
             "valid": 1,
             "all": None,
         }
@@ -106,8 +107,8 @@ class CelebA(VisionDataset):
             verify_str_arg(
                 split.lower() if isinstance(split, str) else split,
                 "split",
-                ("train_bm", "train_bf", "train_nbm", "train_nbf",
-                 "test_bm", "test_bf", "test_nbm", "test_nbf",
+                ("train_mb", "train_fb", "train_mnb", "train_fnb",
+                 "test_mb", "test_fb", "test_mnb", "test_fnb",
                  "valid", "all"),
             )
         ]
@@ -117,12 +118,25 @@ class CelebA(VisionDataset):
         bbox = self._load_csv("list_bbox_celeba.txt", header=1)
         landmarks_align = self._load_csv("list_landmarks_align_celeba.txt", header=1)
         attr = self._load_csv("list_attr_celeba.txt", header=1)
-        
+
         mask = slice(None) if split_ is None else (splits.data == split_).squeeze()
+
         if mask == slice(None):  # if split == "all"
             self.filename = splits.index
         else:
             self.filename = [splits.index[i] for i in torch.squeeze(torch.nonzero(mask))]  # type: ignore[arg-type]
+        
+        # data is now a subset, now select again from this subset using sample_idx
+        if len(sample_idx) > 0:
+            self.filename = [self.filename[i] for i in sample_idx]
+            mask_new = torch.zeros(len(mask), dtype=torch.bool)
+            all_data_for_split_idx = torch.nonzero(mask)
+            # all indices where mask is true
+            sampled_data_for_split_idx = all_data_for_split_idx[sample_idx]
+            # out of them, sample some indexes
+            mask_new[sampled_data_for_split_idx] = True
+            mask = mask_new
+        
         self.identity = identity.data[mask]
         self.bbox = bbox.data[mask]
         self.landmarks_align = landmarks_align.data[mask]
@@ -131,7 +145,8 @@ class CelebA(VisionDataset):
         self.attr = torch.div(self.attr + 1, 2, rounding_mode="floor")
         self.attr_names = attr.header
         self.split_masked = splits.data[mask]
-        self.group_string_map = {'mb': 0, 'fb': 1, 'mnb': 2, 'fnb': 3}
+        self.group_string_map = {'mnb': 0, 'fb': 1, 'mb': 2, 'fnb': 3}
+        self.group_int_map = {value: key for key, value in self.group_string_map.items()}
         self.source_id = source_id
         self.target_loc = attr.header.index('Blond_Hair')
         self.confounder_loc = attr.header.index('Male')

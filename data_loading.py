@@ -115,21 +115,23 @@ def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources
     return dataset, data_sources, test_data_dict
 
 
-def celeba_load(num_minority_points, num_majority_points, batch_size, root_dir='/tmp/', img_size=None):
+def celeba(num_minority_points, num_majority_points, batch_size, root_dir='/tmp/', img_size=None):
     # Note that minority group is blond male and non blond female
+    # celeba dataset must be moved with the following command to /tmp/
+    # cp -r /network/scratch/m/mizu.nishikawa-toomey/celeba /tmp/
     if img_size != None:
         trans = transforms.Compose([transforms.Resize((img_size, img_size)), transforms.PILToTensor()])
     else:
         trans = transforms.Compose([transforms.PILToTensor()])
-    blond_male = CelebA(root_dir, download=True, transform=trans, split='train_bm')
-    blond_female = CelebA(root_dir, download=True, transform=trans, split='train_bf')
-    notblond_male = CelebA(root_dir, download=True, transform=trans, split='train_nbm')
-    notblond_female = CelebA(root_dir, download=True, transform=trans, split='train_nbf')
+    blond_male = CelebA(root_dir, download=True, transform=trans, split='train_mb')
+    blond_female = CelebA(root_dir, download=True, transform=trans, split='train_fb')
+    notblond_male = CelebA(root_dir, download=True, transform=trans, split='train_mnb')
+    notblond_female = CelebA(root_dir, download=True, transform=trans, split='train_fnb')
 
-    blond_male_test = CelebA(root_dir, download=True, transform=trans, split='test_bm')
-    blond_female_test = CelebA(root_dir, download=True, transform=trans, split='test_bf')
-    notblond_male_test = CelebA(root_dir, download=True, transform=trans, split='test_nbm')
-    notblond_female_test = CelebA(root_dir, download=True, transform=trans, split='test_nbf')
+    blond_male_test = CelebA(root_dir, download=True, transform=trans, split='test_mb')
+    blond_female_test = CelebA(root_dir, download=True, transform=trans, split='tes_fnb')
+    notblond_male_test = CelebA(root_dir, download=True, transform=trans, split='test_mnb')
+    notblond_female_test = CelebA(root_dir, download=True, transform=trans, split='test_fnb')
     val = CelebA(root_dir, download=True, transform=trans, split='valid')
     
     print(f"num male blond: {len(blond_male)}")
@@ -155,15 +157,68 @@ def celeba_load(num_minority_points, num_majority_points, batch_size, root_dir='
     data2 = torch.utils.data.Subset(notblond_male, idx_nbm_points)
     data3 = torch.utils.data.Subset(notblond_female, idx_nbf_points)
     training_data_dict = {'mb_train': data0, 'fb_train': data1, 'mnb_train': data2, 'fnb_train': data3}
-    training_data = torch.utils.data.DataLoader(
-        torch.utils.data.ConcatDataset([data0, data1, data2, data3]), shuffle=True, batch_size=batch_size)
     test_data_dict = {'mb_test': blond_male_test, 'fb_test': blond_female_test,
                       'mnb_test': notblond_male_test, 'fnb_test': notblond_female_test, 'val': val}
-    test_data = torch.utils.data.DataLoader(
-        torch.utils.data.ConcatDataset([blond_male_test, blond_female_test, notblond_male_test, notblond_female_test]),
-        shuffle=True, batch_size=batch_size)
 
-    return training_data, test_data, training_data_dict, test_data_dict
+    return blond_male, training_data_dict, test_data_dict
+
+def celeba_n_sources(num_minority_points, num_majority_points, batch_size, n_maj_sources = 3, root_dir='/tmp/', img_size=None):
+    # Note that minority group is blond male and non blond female
+    # celeba dataset must be moved with the following command to /tmp/
+    # cp -r /network/scratch/m/mizu.nishikawa-toomey/celeba /tmp/
+    if img_size != None:
+        trans = transforms.Compose([transforms.Resize((img_size, img_size)), transforms.PILToTensor()])
+    else:
+        trans = transforms.Compose([transforms.PILToTensor()])
+    all_mb = CelebA(root_dir, download=True, transform=trans, split='train_mb')
+    all_fb = CelebA(root_dir, download=True, transform=trans, split='train_fb')
+    all_mnb = CelebA(root_dir, download=True, transform=trans, split='train_mnb')
+    all_fnb = CelebA(root_dir, download=True, transform=trans, split='train_fnb')
+
+    max_mb_points = len(all_mb)
+    max_fb_points = len(all_fb)
+    max_mnb_points = len(all_mnb)
+    max_fnb_points = len(all_fnb)
+    
+    test_mb = CelebA(root_dir, download=True, transform=trans, split='test_mb')
+    test_fb = CelebA(root_dir, download=True, transform=trans, split='test_fb')
+    test_mnb = CelebA(root_dir, download=True, transform=trans, split='test_mnb')
+    test_fnb = CelebA(root_dir, download=True, transform=trans, split='test_fnb')
+    val = CelebA(root_dir, download=True, transform=trans, split='valid')
+    
+
+    num_mb_points_per_group = int(num_minority_points /2)
+    num_fnb_points_per_group = int(num_minority_points /2)
+    num_fb_points_per_group = int(num_majority_points /n_maj_sources)
+    num_mnb_points_per_group = int(num_majority_points /n_maj_sources)
+
+    # majority
+    fb_idxs = np.random.permutation([i for i in range(0, max_fb_points)])
+    mnb_idxs = np.random.permutation([i for i in range(0, max_mnb_points)])
+
+    # minority
+    mb_idxs = np.random.permutation([i for i in range(0, num_mb_points_per_group)])
+    fnb_idxs = np.random.permutation([i for i in range(0, num_fnb_points_per_group)])
+
+    # minority
+    mb = CelebA(root_dir, download=True, transform=trans, split='train_mb', sample_idx=mb_idxs, source_id=0)
+    fnb = CelebA(root_dir, download=True, transform=trans, split='train_fnb', sample_idx=fnb_idxs, source_id=0)
+    s0 = torch.utils.data.ConcatDataset([mb, fnb])
+
+    data_sources = collections.defaultdict()
+    data_sources[0] = s0
+    for i in range(1, n_maj_sources+1):
+        indxs_to_sample_mnb = mnb_idxs[int(i*(num_mnb_points_per_group)):int((i+1)*(num_mnb_points_per_group)) ]
+        indxs_to_sample_fb = fb_idxs[int(i*(num_fb_points_per_group)):int((i+1)*(num_fb_points_per_group)) ]
+        mnb_data_one_group = CelebA(root_dir, download=True, transform=trans, split='train_mnb',
+                                    sample_idx=indxs_to_sample_mnb, source_id=i)
+        fb_data_one_group = CelebA(root_dir, download=True, transform=trans, split='train_fb',
+                                    sample_idx=indxs_to_sample_fb, source_id=i)
+        one_source = torch.utils.data.ConcatDataset([fb_data_one_group, mnb_data_one_group])
+        data_sources[i] = one_source
+    test_data_dict = {'mb_test': test_mb, 'fb_test': test_fb,
+                      'mnb_test': test_mnb, 'fnb_test': test_fnb, 'val': val}
+    return test_mb, data_sources, test_data_dict
 
 def celeba_non_sp_load(num_minority_points, num_majority_points, batch_size, root_dir='/tmp/', img_size=None):
     # Note that minority group is blond male and non blond female

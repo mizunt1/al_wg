@@ -18,8 +18,8 @@ from waterbirds_dataset import WaterbirdsDataset
 from trainer import train_batched, test_batched
 from acquisitions import (Random, UniformGroups,
                           EntropyPerGroup, AccuracyPerGroup, Entropy,
-                          EntropyUniformGroups, MI, EntropyPerGroupLargest, EntropyPerGroupOrdered)
-from data_loading import waterbirds, waterbirds_n_sources
+                          EntropyUniformGroups, MI, EntropyPerGroupNLargest, EntropyPerGroupOrdered)
+from data_loading import waterbirds, waterbirds_n_sources, celeba, celeba_n_sources
 from torch.utils.data import ConcatDataset, DataLoader
 
 # to turn off wandb, export WANDB_MODE=disabled
@@ -34,6 +34,7 @@ def main(args):
     torch.manual_seed(args.seed)
     to_log = collections.defaultdict(list)
     log_term_log = collections.defaultdict(list)
+    print("loading data")
     if args.data_mode == 'wb':
         if args.data_wo_sources:
             dataset, training_data_dict, test_data_dict = waterbirds(args.num_minority_points,
@@ -53,7 +54,17 @@ def main(args):
             true_group_in_loss = False
 
     if args.data_mode == 'celeba':
-        
+        if args.data_wo_sources:
+            dataset, training_data_dict, test_data_dict = celeba(args.num_minority_points,
+                                                                 args.num_majority_points,
+                                                                 batch_size=args.batch_size)
+            true_group_in_loss = True
+        else:
+            dataset, training_data_dict, test_data_dict = celeba_n_sources(args.num_minority_points,
+                                                                           args.num_majority_points,
+                                                                           batch_size=args.batch_size)
+            true_group_in_loss = False
+    print("data loaded")
     model = getattr(models, args.model_name)
     model = model(2, args.pretrained, args.frozen_weights)
 
@@ -71,13 +82,13 @@ def main(args):
         'entropy': Entropy,
         'mi': MI,
         'entropy_uniform_groups': EntropyUniformGroups,
-        'entropy_per_group_largest': EntropyPerGroupLargest,
+        'entropy_per_group_n_largest': EntropyPerGroupNLargest,
         'entropy_per_group_ordered': EntropyPerGroupOrdered}
 
     kwargs_map = {'random': {'al_data': al_data, 'al_size': args.al_size},
                   'uniform_groups': {'al_data': al_data, 'group_proportions': group_dict_uniform_groups},
                   'entropy_per_group': {'al_data': al_data, 'al_size':args.al_size},
-                  'entropy_per_group_largest': {'al_data': al_data, 'al_size':args.al_size},
+                  'entropy_per_group_n_largest': {'al_data': al_data, 'al_size':args.al_size, 'n':2},
                   'entropy_per_group_ordered': {'al_data': al_data, 'al_size':args.al_size},
                   'entropy': {'al_data': al_data, 'al_size': args.al_size},
                   'mi': {'al_data': al_data, 'al_size': args.al_size},
@@ -121,7 +132,7 @@ def main(args):
             pass
         elif args.acquisition == 'entropy_per_group':
             to_log_acq = acquisition_method.information_for_acquisition(model, num_groups)
-        elif args.acquisition == 'entropy_per_group_largest':
+        elif args.acquisition == 'entropy_per_group_n_largest':
             to_log_acq = acquisition_method.information_for_acquisition(model, num_groups)
         elif args.acquisition == 'entropy_per_group_ordered':
             to_log_acq = acquisition_method.information_for_acquisition(model, num_groups)
