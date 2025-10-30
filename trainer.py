@@ -11,8 +11,8 @@ import collections
 from early_stopping import EarlyStopping
 
 def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=None,
-                  weight_decay=0, lr=0.001, flatten=False, label_wb='', gdro=False, num_groups=None,
-                  norm_dict=None, model_checkpoint_path='/network/scratch/m/mizu.nishikawa-toomey/waterbird_cp/',
+                  weight_decay=0, lr=0.001, flatten=False, gdro=False, num_groups=None,
+                  model_checkpoint_path='/network/scratch/m/mizu.nishikawa-toomey/waterbird_cp/',
                   wandb=False, group_mapping_fn=None, group_string_map={}, group_key='metadata',
                   true_group_in_loss=True):
     now = datetime.now()
