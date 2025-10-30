@@ -87,8 +87,8 @@ def main(args):
 
     kwargs_map = {'random': {'al_data': al_data, 'al_size': args.al_size},
                   'uniform_groups': {'al_data': al_data, 'group_proportions': group_dict_uniform_groups},
-                  'entropy_per_group': {'al_data': al_data, 'al_size':args.al_size},
-                  'entropy_per_group_n_largest': {'al_data': al_data, 'al_size':args.al_size, 'n': 1, 'temperature':0.1},
+                  'entropy_per_group': {'al_data': al_data, 'al_size':args.al_size, 'temperature': 0.1},
+                  'entropy_per_group_n_largest': {'al_data': al_data, 'al_size':args.al_size, 'n': 1},
                   'entropy_per_group_ordered': {'al_data': al_data, 'al_size':args.al_size},
                   'entropy': {'al_data': al_data, 'al_size': args.al_size},
                   'mi': {'al_data': al_data, 'al_size': args.al_size},
@@ -129,7 +129,6 @@ def main(args):
         # calculate score over pool depending on acquisition method
         if args.acquisition in ['random', 'uniform_groups']:
             to_log_acq = None
-            pass
         elif args.acquisition == 'entropy_per_group':
             to_log_acq = acquisition_method.information_for_acquisition(model, num_groups)
         elif args.acquisition == 'entropy_per_group_n_largest':
@@ -174,7 +173,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--num_minority_points', type=int, default=400)
     parser.add_argument('--num_majority_points', type=int, default=4000)
-    parser.add_argument('--al_iters', type=int, default=15)
+    parser.add_argument('--al_iters', type=int, default=20)
     parser.add_argument('--al_size', type=int, default=30)
     parser.add_argument('--num_epochs', type=int, default=1)
     parser.add_argument('--batch_size', type=int, default=30)
