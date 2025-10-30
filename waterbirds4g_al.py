@@ -88,7 +88,7 @@ def main(args):
     kwargs_map = {'random': {'al_data': al_data, 'al_size': args.al_size},
                   'uniform_groups': {'al_data': al_data, 'group_proportions': group_dict_uniform_groups},
                   'entropy_per_group': {'al_data': al_data, 'al_size':args.al_size},
-                  'entropy_per_group_n_largest': {'al_data': al_data, 'al_size':args.al_size, 'n':2},
+                  'entropy_per_group_n_largest': {'al_data': al_data, 'al_size':args.al_size, 'n': 1, 'temperature':0.1},
                   'entropy_per_group_ordered': {'al_data': al_data, 'al_size':args.al_size},
                   'entropy': {'al_data': al_data, 'al_size': args.al_size},
                   'mi': {'al_data': al_data, 'al_size': args.al_size},
