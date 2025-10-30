@@ -19,7 +19,7 @@ class Random(ActiveLearningAcquisitions):
         self.al_size = al_size
     
     def information_for_acquisition(self):
-        pass
+        return None
 
     def return_indices(self):
         return self.al_data.get_random_available_indices(self.al_size)
@@ -30,7 +30,7 @@ class UniformGroups(ActiveLearningAcquisitions):
         self.group_proportions = group_proportions
     
     def information_for_acquisition(self):
-        pass
+        return None
 
     def return_indices(self):
         return self.al_data.get_indices_groups(self.group_proportions)
@@ -40,22 +40,46 @@ class EntropyPerGroup(ActiveLearningAcquisitions):
         self.al_data = al_data
         self.al_size = al_size
         self.group_proportions = None
+        self.group_ents = None
 
     def _ent_per_group_inverse(self, model, dataloader, num_groups, al_size):
-        group_ents = calc_ent_per_group_batched(model, dataloader, num_groups)
-        total_ent = sum(group_ents.values())
-        normalised_ents = {key: int((value/total_ent)*al_size) for key, value in group_ents.items()}
+        self.group_ents = calc_ent_per_group_batched(model, dataloader, num_groups)
+        total_ent = sum(self.group_ents.values())
+        normalised_ents = {key: int((value/total_ent)*al_size) for key, value in self.group_ents.items()}
         return normalised_ents
 
-    def information_for_acquisition(self, model, num_groups):
-        
+    def information_for_acquisition(self, model, num_groups):        
         group_proportions = self._ent_per_group_inverse(
             model, self.al_data.get_pool_loader(64), num_groups, self.al_size)
         self.group_proportions = group_proportions
+        to_log = self.group_ents
+        return self.group_ents
 
     def return_indices(self):
         return self.al_data.get_indices_groups(self.group_proportions)
-        
+
+class EntropyPerGroupLargest(ActiveLearningAcquisitions):
+    def __init__(self, al_data=None, al_size=None):
+        self.al_data = al_data
+        self.al_size = al_size
+        self.group_proportions = None
+
+    def _largest_ent_group(self, model, dataloader, num_groups, al_size):
+        group_ents = calc_ent_per_group_batched(model, dataloader, num_groups)
+        max_group = max(group_ents)
+        group_prop = {key:0 for key, items in group_ents.items()}
+        group_prop[max_group] = al_size
+        return group_prop
+
+    def information_for_acquisition(self, model, num_groups):
+        group_proportions = self._largest_ent_group(
+            model, self.al_data.get_pool_loader(64), num_groups, self.al_size)
+        self.group_proportions = group_proportions
+        return self.group_proportions
+    
+    def return_indices(self):
+        return self.al_data.get_indices_groups(self.group_proportions)
+
 class AccuracyPerGroup(ActiveLearningAcquisitions):
     def __init__(self, al_data=None, al_size=None):
         self.al_data = al_data
@@ -90,7 +114,8 @@ class Entropy(ActiveLearningAcquisitions):
         pool_loader = self.al_data.get_pool_loader(64)
         self.indices = self.al_data.pool.indices
         self.entropies = calc_ent_per_point_batched(model, pool_loader)
-
+        return None
+        
     def return_indices(self):
         sorted_by_ent = sorted(zip(self.entropies, self.indices), reverse=True)
         greatest_ent_points = [item[1] for item in sorted_by_ent[:self.al_size]]
@@ -107,7 +132,8 @@ class MI(ActiveLearningAcquisitions):
         pool_loader = self.al_data.get_pool_loader(64)
         self.indices = self.al_data.pool.indices
         self.mi = calc_ent_per_point_batched(model, pool_loader, mi=True)
-
+        return None
+    
     def return_indices(self):
         sorted_by_ent = sorted(zip(self.mi, self.indices), reverse=True)
         greatest_ent_points = [item[1] for item in sorted_by_ent[:self.al_size]]
@@ -139,7 +165,8 @@ class EntropyPerGroupOrdered(ActiveLearningAcquisitions):
             sorted_by_ent = sorted(zip(entropies, indices_all_group), reverse=True)
             greatest_ent_points = [item[1] for item in sorted_by_ent[:proportion]]
             self.indices_selected.extend(greatest_ent_points)
-
+        return group_proportions
+    
     def return_indices(self):
         return self.indices_selected
 
@@ -157,7 +184,7 @@ class EntropyUniformGroups(ActiveLearningAcquisitions):
         pool_loader = self.al_data.get_pool_loader(64)
         self.indices = self.al_data.pool.indices
         self.entropies = calc_ent_per_point_batched(model, pool_loader)
-        
+        return self.entropies
     def return_indices(self):
         final_indices = []
         sorted_by_ent = sorted(zip(self.entropies, self.indices), reverse=True)
@@ -195,7 +222,8 @@ class EPIG_largest_entropy_group(ActiveLearningAcquisitions):
         log_probs_pool = return_log_probs(model, self.al_data.get_pool_loader(64))
         epig_scores = batch_epig(log_probs_pool, log_probs_target)
         self.scores_indices = zip(epig_scores, self.al_data.pool.indices) 
-
+        return group_ents
+    
     def return_indices(self):
         sorted_by_score = sorted(self.scores_indices, reverse=True)
         greatest_ent_points = [item[1] for item in sorted_by_score[:self.al_size]]

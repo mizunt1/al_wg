@@ -4,8 +4,10 @@ import random
 from waterbirds_dataset import WaterbirdsDataset
 from torchvision import transforms
 from celeba import CelebA
+import numpy as np
+import collections
 
-def waterbirds(num_minority_points, num_majority_points, batch_size,
+def waterbirds(num_minority_points, num_majority_points,
                metadata_path='metadata_larger.csv', root_dir='data/', img_size=None):
     use_cuda = True
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
@@ -25,20 +27,17 @@ def waterbirds(num_minority_points, num_majority_points, batch_size,
     dataset = WaterbirdsDataset(version='larger', root_dir=root_dir, download=True,
                                 split_scheme=split_scheme, split_names=split_names,
                                 metadata_name=metadata_path, use_rep=False)
-    training0_data = dataset.get_subset(
-        "wl_train", transform=trans)
-    training1_data = dataset.get_subset(
-        "lw_train",
-        transform=trans)
-    training2_data = dataset.get_subset(
-        "ww_train",
-        transform=trans)
-    training3_data = dataset.get_subset(
-        "ll_train",
-        transform=trans)
-    training_data_dict = {'wl_train': training0_data, 'lw_train': training1_data,
-                          'ww_train': training2_data, 'll_train': training3_data}
+    num_wl_points = num_minority_points //2
+    num_lw_points = num_minority_points //2
+    num_ww_points = num_majority_points //2
+    num_ll_points = num_majority_points //2
 
+    trainingwl_data = dataset.get_subset("wl_train", transform=trans, num_points=num_wl_points)
+    traininglw_data = dataset.get_subset("lw_train", num_points=num_lw_points, transform=trans)
+    trainingww_data = dataset.get_subset("ww_train", num_points=num_ww_points, transform=trans)
+    trainingll_data = dataset.get_subset("ll_train", num_points=num_ll_points, transform=trans)
+    print(
+        f"Training data used sizes wl : {len(trainingwl_data)}, lw : {traininglw_data}, ww: {trainingww_data}, ll: {trainingll_data}")
     ww_test = dataset.get_subset("ww_test", transform=trans)
     testww_data = torch.utils.data.DataLoader(ww_test, batch_size=batch_size, **kwargs)
     wl_test = dataset.get_subset("wl_test", transform=trans)
@@ -51,31 +50,69 @@ def waterbirds(num_minority_points, num_majority_points, batch_size,
         dataset.get_subset(
         "val",
         transform=trans), batch_size=batch_size, **kwargs)
-    print(f"Training data max sizes: wl: {len(training0_data)}, lw: {len(training1_data)}, ww: {len(training2_data)}, ll {len(training3_data)}")
-    num_wl_points = num_minority_points //2
-    num_lw_points = num_minority_points //2
-    num_ww_points = num_majority_points //2
-    num_ll_points = num_majority_points //2
-    assert num_wl_points <= len(training0_data)
-    assert num_lw_points <= len(training1_data)
-    assert num_ww_points <= len(training2_data)
-    assert num_ll_points <= len(training3_data)
-    print(f"Training data used sizes wl : {num_wl_points}, lw : {num_lw_points}, ww: {num_ww_points}, ll: {num_ll_points}")
-    idx_wl_points = random.sample([i for i in range(len(training0_data))], k=num_wl_points)
-    idx_lw_points = random.sample([i for i in range(len(training1_data))], k=num_lw_points)
-    idx_ww_points = random.sample([i for i in range(len(training2_data))], k=num_ww_points)
-    idx_ll_points = random.sample([i for i in range(len(training3_data))], k=num_ll_points)
-    data0 = torch.utils.data.Subset(training0_data, idx_wl_points)
-    data1 = torch.utils.data.Subset(training1_data, idx_lw_points)
-    data2 = torch.utils.data.Subset(training2_data, idx_ww_points)
-    data3 = torch.utils.data.Subset(training3_data, idx_ll_points)
-    training_data = torch.utils.data.DataLoader(
-        torch.utils.data.ConcatDataset([data0, data1, data2, data3]), shuffle=True, batch_size=batch_size)
+
+    training_data_dict = {'wl_train': data0, 'lw_train': data1,
+                          'ww_train': data2, 'll_train': data3}
     test_data_dict = {'ww_test': testww_data, 'll_test': testll_data,
                       'lw_test': testlw_data, 'wl_test': testwl_data, 'val': val_data}
-    test_data = torch.utils.data.DataLoader(
-        torch.utils.data.ConcatDataset([ww_test, wl_test, ll_test, lw_test]), shuffle=True, batch_size=batch_size)
-    return training_data, test_data, training_data_dict, test_data_dict
+    return training_data_dict, test_data_dict
+
+def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources=3,
+               metadata_path='metadata_larger.csv', root_dir='data/', img_size=None):
+    use_cuda = True
+    kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
+    if img_size == None:
+        img_size = 512
+        
+    trans = transforms.Compose(
+        [transforms.Resize((img_size, img_size)), transforms.ToTensor()])
+    # training datasets
+    split_scheme = {"wl_train":0, "lw_train": 1, "ww_train": 2, "ll_train": 3,
+                    "wl_test":4, "lw_test": 5, "ww_test": 6, "ll_test": 7, "val": 8}
+    split_names = {"wl_train":"wl_train", "ww_train": 'ww_train', "ll_train": 'll_train',
+                   "lw_train": "lw_train","wl_test": 'wl_test',
+                   "ww_test":"ww_test", "ll_test": "ll_test", "lw_test": "lw_test",
+                   "val": "val"}
+
+    dataset = WaterbirdsDataset(version='larger', root_dir=root_dir, download=True,
+                                split_scheme=split_scheme, split_names=split_names,
+                                metadata_name=metadata_path, use_rep=False)
+    testww_data = dataset.get_subset("ww_test", transform=trans)
+    testwl_data = dataset.get_subset("wl_test", transform=trans)
+    testll_data = dataset.get_subset("ll_test", transform=trans)
+    testlw_data = dataset.get_subset("lw_test", transform=trans)
+    val_data = dataset.get_subset("val", transform=trans)
+    ##### training data min group #####
+    num_wl_points = num_minority_points //2
+    num_lw_points = num_minority_points //2
+    
+    num_ww_points = num_majority_points //2
+    num_ll_points = num_majority_points //2
+    num_ww_points_per_group = num_ww_points //(n_maj_sources)
+    num_ll_points_per_group = num_ll_points //(n_maj_sources)
+
+    trainingwl_data = dataset.get_subset("wl_train", num_points=num_wl_points, transform=trans, source_id=0)
+    traininglw_data = dataset.get_subset("lw_train", num_points=num_lw_points, transform=trans, source_id=0)
+    s0 = torch.utils.data.ConcatDataset([trainingwl_data, traininglw_data])
+
+    data_sources = collections.defaultdict()
+    data_sources[0] = s0
+    ##### training data maj group ######
+    max_ww_points = dataset.get_subset_max_size("ww_train")
+    max_ll_points = dataset.get_subset_max_size("ll_train")
+
+    ww_idxs = np.random.permutation([i for i in range(0, max_ww_points)])
+    ll_idxs = np.random.permutation([i for i in range(0, max_ll_points)])
+    for i in range(1, n_maj_sources+1):
+        indxs_to_sample_ww = ww_idxs[int(i*(num_ww_points_per_group)):int((i+1)*(num_ww_points_per_group)) ]
+        indxs_to_sample_ll = ll_idxs[int(i*(num_ww_points_per_group)):int((i+1)*(num_ww_points_per_group)) ]
+        ww_data_one_group = dataset.get_subset("ww_train", sample_idx=indxs_to_sample_ww, source_id=i, transform=trans)
+        ll_data_one_group = dataset.get_subset("ll_train", sample_idx=indxs_to_sample_ll, source_id=i, transform=trans)
+        one_source = torch.utils.data.ConcatDataset([ww_data_one_group, ll_data_one_group])
+        data_sources[i] = one_source
+    test_data_dict = {'ww_test': testww_data, 'll_test': testll_data,
+                      'lw_test': testlw_data, 'wl_test': testwl_data, 'val': val_data}
+    return data_sources, test_data_dict
 
 
 def celeba_load(num_minority_points, num_majority_points, batch_size, root_dir='/tmp/', img_size=None):

@@ -144,7 +144,7 @@ def calc_ent_batched(model, dataloader, num_models=100):
     for batch_idx, out_dict in enumerate(dataloader):
         data = out_dict['data']
         target = out_dict['target']
-        group_id = out_dict['group_id']
+        group_id = out_dict['source_id']
         data, target = data.to(device), target.to(device)
         #data = data.reshape(-1, 3*28*28)
         ents = entropy_drop_out(model, data, num_models=num_models)
@@ -190,7 +190,7 @@ def calc_ent_per_group_batched(model, dataloader, num_groups, num_models=100):
     for batch_idx, out_dict in enumerate(dataloader):
         data = out_dict['data']
         target = out_dict['target']
-        group_id = out_dict['group_id']
+        group_id = out_dict['source_id']
 
         data, target = data.to(device), target.to(device)
         #data = data.reshape(-1, 3*28*28)
@@ -212,7 +212,7 @@ def test_batched_per_group(model, dataloader_test, num_groups):
     for batch_idx, out_dict in enumerate(dataloader_test):
         data = out_dict['data']
         target = out_dict['target']
-        group_id = out_dict['group_id']
+        group_id = out_dict['source_id']
         data, target = data.to(device), target.to(device)
         output = model(data).squeeze(1)
         out = output.argmax(axis=1)

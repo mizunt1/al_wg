@@ -68,7 +68,8 @@ def main(args):
             #    continue
             waterbirds_dummy = WaterbirdsDataset()
             # train model for different data amounts and log train and test
-
+            training_loader = DataLoader(training_loader, batch_size=args.batch_size, shuffle=True)
+            test_loader = DataLoader(test_loader, batch_size=args.batch_size, shuffle=True)
             train_acc, test_acc, group_dict, wga = train_batched(
                 model, num_epochs=args.num_epochs, lr=args.lr, num_groups=4,
                 dataloader=training_loader, dataloader_test=test_loader, group_mapping_fn=waterbirds_dummy.group_mapping_fn,

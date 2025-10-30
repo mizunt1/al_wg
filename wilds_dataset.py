@@ -1,6 +1,5 @@
 import os
 import time
-
 import torch
 import numpy as np
 
@@ -22,6 +21,7 @@ class WILDSDataset:
             self._metadata_array = self._metadata_array.unsqueeze(1)
         self._add_coarse_domain_metadata()
         self.check_init()
+        
         self.source_id = -1
 
     def __len__(self):
@@ -33,10 +33,8 @@ class WILDSDataset:
         x = self.get_input(idx)
         y = self.y_array[idx]
         metadata = self.metadata_array[idx]
-        group_id = self._split_array[idx]
         return {'data': x, 'target': y, 'metadata': metadata, 'source_id': self.source_id, 'idx': idx}
     
-
     def get_input(self, idx):
         """
         Args:
@@ -58,7 +56,15 @@ class WILDSDataset:
         """
         raise NotImplementedError
 
-    def get_subset(self, split, frac=1.0, transform=None, source_id=-1):
+    def get_subset_max_size(self, split):
+        if split not in self.split_dict:
+            raise ValueError(f"Split {split} not found in dataset's split_dict.")
+
+        split_mask = self.split_array == self.split_dict[split]
+        split_idx = np.where(split_mask)[0]
+        return len(split_idx)
+        
+    def get_subset(self, split, num_points=None, sample_idx=[], transform=None, source_id=-1):
         """
         Args:
             - split (str): Split identifier, e.g., 'train', 'val', 'test'.
@@ -75,11 +81,11 @@ class WILDSDataset:
         split_mask = self.split_array == self.split_dict[split]
         split_idx = np.where(split_mask)[0]
 
-        if frac < 1.0:
+        if num_points != None:
             # Randomly sample a fraction of the split
-            num_to_retain = int(np.round(float(len(split_idx)) * frac))
-            split_idx = np.sort(np.random.permutation(split_idx)[:num_to_retain])
-
+            split_idx = np.sort(np.random.permutation(split_idx)[:num_points])
+        if len(sample_idx) > 0:
+            split_idx = np.sort(split_idx[sample_idx])
         return WILDSSubset(self, split_idx, transform, source_id=source_id)
 
     def _add_coarse_domain_metadata(self):
@@ -509,6 +515,9 @@ class WILDSSubset(WILDSDataset):
     def __len__(self):
         return len(self.indices)
 
+    def set_source_id(self, source_id):
+        # given a subset, change the source ids for that subset.
+        self.source_id = source_id
     @property
     def split_array(self):
         return self.dataset._split_array[self.indices]

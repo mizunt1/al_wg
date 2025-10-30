@@ -75,12 +75,14 @@ class WaterbirdsDataset(WILDSDataset):
         # Note: metadata_df is one-indexed.
         metadata_df = pd.read_csv(
             os.path.join(self.data_dir, metadata_name))
+        # add source to df
+        metadata_df['source_id'] = -1
         self.rep_file_path = rep_file_path
         # Get the y values
         self._y_array = torch.LongTensor(metadata_df['y'].values)
         self._y_size = 1
         self._n_classes = 2
-
+        
         self._metadata_array = torch.stack(
             (torch.LongTensor(metadata_df['place'].values), self._y_array),
             dim=1
@@ -135,7 +137,7 @@ class WaterbirdsDataset(WILDSDataset):
         groups = torch.zeros(len(metadata))
         groups = groups + ll + wl*2 + lw*3
         return groups.int()
-
+    
 
 def count_groups(data):
     ww = 0

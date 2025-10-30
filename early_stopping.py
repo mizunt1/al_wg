@@ -27,9 +27,9 @@ class EarlyStopping:
         self.delta = delta
         self.path = path
         self.trace_func = trace_func
-        self.test_acc = None
+        self.test_acc_dict = None
 
-    def __call__(self, val_loss, model, test_acc):
+    def __call__(self, val_loss, model, test_acc_dict):
         # Check if validation loss is nan
         if np.isnan(val_loss):
             self.trace_func("Validation loss is NaN. Ignoring this epoch.")
@@ -37,12 +37,12 @@ class EarlyStopping:
 
         if self.best_val_loss is None:
             self.best_val_loss = val_loss
-            self.save_checkpoint(val_loss, model, test_acc)
+            self.save_checkpoint(val_loss, model, test_acc_dict)
         elif val_loss < self.best_val_loss - self.delta:
             # Significant improvement detected
             # if theres an improvement, counter is set to zero
             self.best_val_loss = val_loss
-            self.save_checkpoint(val_loss, model, test_acc)
+            self.save_checkpoint(val_loss, model, test_acc_dict)
             self.counter = 0  # Reset counter since improvement occurred
         else:
             # No significant improvement
@@ -53,10 +53,10 @@ class EarlyStopping:
             if self.counter >= self.patience:
                 self.early_stop = True
 
-    def save_checkpoint(self, val_loss, model, test_acc):
+    def save_checkpoint(self, val_loss, model, test_acc_dict):
         '''Saves model when validation loss decreases.'''
         if self.verbose:
             self.trace_func(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
         #torch.save(model.state_dict(), self.path)
         self.val_loss_min = val_loss
-        self.test_acc = test_acc
+        self.test_acc_dict = test_acc_dict

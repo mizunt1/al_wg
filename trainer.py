@@ -15,7 +15,7 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
                   norm_dict=None, model_checkpoint_path='/network/scratch/m/mizu.nishikawa-toomey/waterbird_cp/',
                   wandb=False, group_mapping_fn=None, group_string_map={}, group_key='metadata',
                   true_group_in_loss=True):
-    now = datetime.now() 
+    now = datetime.now()
     formatted_full = now.strftime("%A, %B %d, %Y %H:%M:%S")
     path = model_checkpoint_path + formatted_full + 'model.pt'
     early_stopping = EarlyStopping(patience=10, verbose=True, path=path)
@@ -80,7 +80,7 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
             early_stopping(-wga, model, test_acc_dict)
             if early_stopping.early_stop:
                 print('early stopping at epoch ' + str(epoch))
-                test_acc = early_stopping.test_acc
+                test_acc_dict = early_stopping.test_acc_dict
                 wga = -early_stopping.val_loss_min
                 break
             
