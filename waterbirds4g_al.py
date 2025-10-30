@@ -145,21 +145,22 @@ def main(args):
         # using model get info for acquisition function
         print('dict groups in train', group_dict_train)
         if args.acquisition in ['random', 'uniform_groups']:
+            to_log_acq = None
             pass
         elif args.acquisition == 'entropy_per_group':
-            acquisition_method.information_for_acquisition(model, num_groups)
+            to_log_acq = acquisition_method.information_for_acquisition(model, num_groups)
         elif args.acquisition == 'entropy_per_group_largest':
-            acquisition_method.information_for_acquisition(model, num_groups)
+            to_log_acq = acquisition_method.information_for_acquisition(model, num_groups)
         elif args.acquisition == 'entropy_per_group_ordered':
-            acquisition_method.information_for_acquisition(model, num_groups)
+            to_log_acq = acquisition_method.information_for_acquisition(model, num_groups)
         elif args.acquisition == 'entropy':
-            acquisition_method.information_for_acquisition(model)
+            to_log_acq = acquisition_method.information_for_acquisition(model)
         elif args.acquisition == 'mi':
-            acquisition_method.information_for_acquisition(model)
+            to_log_acq = acquisition_method.information_for_acquisition(model)
         elif args.acquisition == 'accuracy':
-            acquisition_method.information_for_acquisition(model, indices, num_groups, k=3)
+            to_log_acq = acquisition_method.information_for_acquisition(model, indices, num_groups, k=3)
         elif args.acquisition == 'entropy_uniform_groups':
-            acquisition_method.information_for_acquisition(model, num_groups)
+            to_log_acq = acquisition_method.information_for_acquisition(model, num_groups)
         else:
             print('acquisition not recognised')
 
@@ -190,7 +191,10 @@ def main(args):
             to_log.update({wb_dataset.group_int_map[key] + ' in train' : value for key, value in group_dict_train.items()})
         else:
             to_log.update({str(key) + ' in train' : value for key, value in group_dict_train.items()})
+        if to_log_acq != None:    
+            to_log.update({'entropy for source ' + str(key) : value for key, value in to_log_acq.items()})
         if isinstance(proportion_correct_test, dict):
+            
             to_log.update(proportion_correct_test)
         else:
             to_log.update({'test acc': proportion_correct_test})
@@ -204,10 +208,10 @@ if __name__ == "__main__":
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--num_minority_points', type=int, default=500)
-    parser.add_argument('--num_majority_points', type=int, default=3000)
+    parser.add_argument('--num_minority_points', type=int, default=400)
+    parser.add_argument('--num_majority_points', type=int, default=4000)
     parser.add_argument('--al_iters', type=int, default=15)
-    parser.add_argument('--al_size', type=int, default=50)
+    parser.add_argument('--al_size', type=int, default=30)
     parser.add_argument('--num_epochs', type=int, default=30)
     parser.add_argument('--batch_size', type=int, default=30)
     parser.add_argument('--size', type=int, default=-1)
