@@ -36,8 +36,8 @@ def waterbirds(num_minority_points, num_majority_points,
     traininglw_data = dataset.get_subset("lw_train", num_points=num_lw_points, transform=trans)
     trainingww_data = dataset.get_subset("ww_train", num_points=num_ww_points, transform=trans)
     trainingll_data = dataset.get_subset("ll_train", num_points=num_ll_points, transform=trans)
-    print(
-        f"Training data used sizes wl : {len(trainingwl_data)}, lw : {traininglw_data}, ww: {trainingww_data}, ll: {trainingll_data}")
+    print(f"Training data used sizes wl : {len(trainingwl_data)}, lw : {traininglw_data}, ww: {trainingww_data}, ll: {trainingll_data}")
+
     ww_test = dataset.get_subset("ww_test", transform=trans)
     wl_test = dataset.get_subset("wl_test", transform=trans)
     ll_test = dataset.get_subset("ll_test", transform=trans)
@@ -123,7 +123,7 @@ def celeba(num_minority_points, num_majority_points, batch_size, root_dir='/tmp/
     notblond_female = CelebA(root_dir, download=True, transform=trans, split='train_fnb')
 
     blond_male_test = CelebA(root_dir, download=True, transform=trans, split='test_mb')
-    blond_female_test = CelebA(root_dir, download=True, transform=trans, split='tes_fnb')
+    blond_female_test = CelebA(root_dir, download=True, transform=trans, split='test_fnb')
     notblond_male_test = CelebA(root_dir, download=True, transform=trans, split='test_mnb')
     notblond_female_test = CelebA(root_dir, download=True, transform=trans, split='test_fnb')
     val = CelebA(root_dir, download=True, transform=trans, split='valid')
