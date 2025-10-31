@@ -87,8 +87,8 @@ def main(args):
 
     kwargs_map = {'random': {'al_data': al_data, 'al_size': args.al_size},
                   'uniform_groups': {'al_data': al_data, 'group_proportions': group_dict_uniform_groups},
-                  'entropy_per_group': {'al_data': al_data, 'al_size':args.al_size, 'temperature': 0.1},
-                  'entropy_per_group_n_largest': {'al_data': al_data, 'al_size':args.al_size, 'n': 1},
+                  'entropy_per_group': {'al_data': al_data, 'al_size':args.al_size, 'temperature': args.temperature},
+                  'entropy_per_group_n_largest': {'al_data': al_data, 'al_size':args.al_size, 'n': args.n_size},
                   'entropy_per_group_ordered': {'al_data': al_data, 'al_size':args.al_size},
                   'entropy': {'al_data': al_data, 'al_size': args.al_size},
                   'mi': {'al_data': al_data, 'al_size': args.al_size},
@@ -148,7 +148,7 @@ def main(args):
             print('acquisition not recognised')
         if to_log_acq != None:    
             to_log.update({'average entropy for source ' + str(key) : value for key, value in to_log_acq.items()})
-
+        
         # acquire data
         indices = acquisition_method.return_indices()
         al_data.acquire_with_indices(indices)
@@ -171,19 +171,21 @@ if __name__ == "__main__":
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--num_minority_points', type=int, default=400)
-    parser.add_argument('--num_majority_points', type=int, default=4000)
+    parser.add_argument('--num_minority_points', type=int, default=200)
+    parser.add_argument('--num_majority_points', type=int, default=2000)
     parser.add_argument('--al_iters', type=int, default=20)
     parser.add_argument('--al_size', type=int, default=30)
+    parser.add_argument('--n_size', type=int, default=1)
     parser.add_argument('--num_epochs', type=int, default=1)
     parser.add_argument('--batch_size', type=int, default=30)
     parser.add_argument('--size', type=int, default=-1)
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--weight_decay', type=float, default=0)
+    parser.add_argument('--temperature', type=float, default=0.1)
     parser.add_argument('--acquisition', type=str, default='random')
     parser.add_argument('--data_mode', type=str, default='wb')
     parser.add_argument('--model_name', type=str, default='BayesianNetRes50ULarger')
-    parser.add_argument('--start_acquisition', type=str, default='random')
+    parser.add_argument('--start_acquisition', type=str, default='uniform_groups')
     parser.add_argument('--project_name', type=str, default='test')
     parser.add_argument('--gdro', default=False, action='store_true')
     parser.add_argument('--train_all_data', default=False, action='store_true')

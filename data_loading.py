@@ -39,22 +39,16 @@ def waterbirds(num_minority_points, num_majority_points,
     print(
         f"Training data used sizes wl : {len(trainingwl_data)}, lw : {traininglw_data}, ww: {trainingww_data}, ll: {trainingll_data}")
     ww_test = dataset.get_subset("ww_test", transform=trans)
-    testww_data = torch.utils.data.DataLoader(ww_test, batch_size=batch_size, **kwargs)
     wl_test = dataset.get_subset("wl_test", transform=trans)
-    testwl_data = torch.utils.data.DataLoader(wl_test, batch_size=batch_size,**kwargs)
     ll_test = dataset.get_subset("ll_test", transform=trans)
-    testll_data = torch.utils.data.DataLoader(ll_test, batch_size=batch_size, **kwargs)
     lw_test = dataset.get_subset("lw_test", transform=trans)
-    testlw_data = torch.utils.data.DataLoader(lw_test, batch_size=batch_size, **kwargs)
-    val_data = torch.utils.data.DataLoader(
-        dataset.get_subset(
-        "val",
-        transform=trans), batch_size=batch_size, **kwargs)
 
-    training_data_dict = {'wl_train': data0, 'lw_train': data1,
-                          'ww_train': data2, 'll_train': data3}
-    test_data_dict = {'ww_test': testww_data, 'll_test': testll_data,
-                      'lw_test': testlw_data, 'wl_test': testwl_data, 'val': val_data}
+    val_data = dataset.get_subset("val", transform=trans)
+
+    training_data_dict = {'wl_train': trainingwl_data, 'lw_train': traininglw_data,
+                          'ww_train': trainingww_data, 'll_train': trainingll_data}
+    test_data_dict = {'ww_test': ww_test, 'll_test': ll_test,
+                      'lw_test': lw_test, 'wl_test': wl_test, 'val': val_data}
     return dataset, training_data_dict, test_data_dict
 
 def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources=3,
@@ -163,7 +157,7 @@ def celeba(num_minority_points, num_majority_points, batch_size, root_dir='/tmp/
     return blond_male, training_data_dict, test_data_dict
 
 def celeba_n_sources(num_minority_points, num_majority_points, batch_size, n_maj_sources = 3, root_dir='/tmp/', img_size=None):
-    # Note that minority group is blond male and non blond female
+    #  minority group is mb fnb
     # celeba dataset must be moved with the following command to /tmp/
     # cp -r /network/scratch/m/mizu.nishikawa-toomey/celeba /tmp/
     if img_size != None:
@@ -186,9 +180,11 @@ def celeba_n_sources(num_minority_points, num_majority_points, batch_size, n_maj
     test_fnb = CelebA(root_dir, download=True, transform=trans, split='test_fnb')
     val = CelebA(root_dir, download=True, transform=trans, split='valid')
     
-
+    # minority 
     num_mb_points_per_group = int(num_minority_points /2)
     num_fnb_points_per_group = int(num_minority_points /2)
+
+    # majority
     num_fb_points_per_group = int(num_majority_points /n_maj_sources)
     num_mnb_points_per_group = int(num_majority_points /n_maj_sources)
 
@@ -203,6 +199,7 @@ def celeba_n_sources(num_minority_points, num_majority_points, batch_size, n_maj
     # minority
     mb = CelebA(root_dir, download=True, transform=trans, split='train_mb', sample_idx=mb_idxs, source_id=0)
     fnb = CelebA(root_dir, download=True, transform=trans, split='train_fnb', sample_idx=fnb_idxs, source_id=0)
+
     s0 = torch.utils.data.ConcatDataset([mb, fnb])
 
     data_sources = collections.defaultdict()
