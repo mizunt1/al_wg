@@ -59,13 +59,13 @@ def main(args):
                                                                              batch_size=args.batch_size,img_size=img_size)
             true_group_in_loss = True
         if args.data_mode == 'celeba':
-            dataset, training_data_dict, test_data_dict = celeba(args.num_minority_points,
-                                                                 args.num_majority_points,
+            dataset, training_data_dict, test_data_dict = celeba(num_minority_points,
+                                                                 num_majority_points,
                                                                  batch_size=args.batch_size,
                                                                  img_size=img_size)
                                                                  
-            ood_dataset, ood_training_data_dict, ood_test_data_dict = waterbirds(args.num_minority_points,
-                                                                                 args.num_majority_points,
+            ood_dataset, ood_training_data_dict, ood_test_data_dict = waterbirds(num_minority_points,
+                                                                                 num_majority_points,
                                                                                  metadata_path='metadata_larger.csv',
                                                                                  img_size=img_size,
                                                                                  root_dir="/network/scratch/m/"
