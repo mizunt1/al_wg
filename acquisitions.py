@@ -50,7 +50,7 @@ class EntropyPerGroup(ActiveLearningAcquisitions):
         if self.softmax:
             calculated_prob = softmax(np.array([*self.group_ents.values()])/self.temperature)
             self.group_proportions = {key: int(value*al_size) for key, value in enumerate(calculated_prob)}
-            to_log = self.group_proportions
+            to_log = self.group_ents
         else:
             total_ent = sum(self.group_ents.values())
             self.group_proportions = {key: int((value/total_ent)*al_size) for key, value in self.group_ents.items()}
@@ -74,7 +74,7 @@ class EntropyPerGroupNLargest(ActiveLearningAcquisitions):
 
     def _largest_ent_group(self, model, dataloader, num_groups, al_size):
         group_ents = calc_ent_per_group_batched(model, dataloader, num_groups)
-        max_groups0 = sorted(group_ents.items(), key=lambda item: item[1])[:self.n]
+        max_groups0 = sorted(group_ents.items(), key=lambda item: item[1])[self.n:]
         max_groups = [item[0] for item in max_groups0]
         group_prop = {key:0 for key, items in group_ents.items()}
         sample_per_group = al_size // self.n
