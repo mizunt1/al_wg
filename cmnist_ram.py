@@ -79,7 +79,7 @@ class ColoredMNISTRAM(datasets.VisionDataset):
     def __len__(self):
         return len(self.data_label_tuples)
 
-    def group_mapping_fn(self.metadata):
+    def group_mapping_fn(self, metadata):
         target_y = metadata[0]
         target_red = metadata[1]
         y1r = (target_y == 1) & (target_red == 1)

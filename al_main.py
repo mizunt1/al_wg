@@ -67,7 +67,7 @@ def main(args):
 
     if args.data_mode == 'cmnist':
         dataset, training_data_dict, test_data_dict = cmnist_n_sources(args.num_minority_points, args.num_majority_points,
-                                                                       n_maj_sources)
+                                                                       n_maj_sources=3)
         true_group_in_loss = False
         
     print("data loaded")

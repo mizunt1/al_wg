@@ -3,6 +3,7 @@ from torchvision import transforms
 import random
 from waterbirds_dataset import WaterbirdsDataset
 from torchvision import transforms
+from cmnist_ram import ColoredMNISTRAM
 from celeba import CelebA
 import numpy as np
 import collections
@@ -288,9 +289,9 @@ def cmnist_n_sources(num_minority_points, num_majority_points, n_maj_sources):
         dataset = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                   causal_noise=0,
                                   transform=trans, start_idx=start_idx, num_samples=num_majority_points_per_group, 
-                                  red=1, group_idx=i)
+                                  red=1, source_id=i)
         start_idx += num_majority_points_per_group
-        data_souces[i] = dataset
+        data_sources[i] = dataset
     dataset0_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                       causal_noise=0,
                                       transform=trans, start_idx=start_idx, num_samples=5000,
@@ -302,7 +303,7 @@ def cmnist_n_sources(num_minority_points, num_majority_points, n_maj_sources):
                                       source_id=1, red=1)
 
         
-    return dataset, data_sources, {'y0r': data0_unseen, 'y1r': data1_unseen}
+    return dataset, data_sources, {'y0r': dataset0_unseen, 'y1r': dataset1_unseen}
 
 
 if __name__ == "__main__":
