@@ -67,12 +67,12 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
                 loss = loss_fn(output, target)
             loss.backward()
             optimizer.step()
-            total_correct += sum(out == target)
+            total_correct += sum(out == target).cpu()
             total_points += len(target)
             if epoch == 0:
                 groups.extend(group_in_loss)
 
-        train_acc = (total_correct / total_points).cpu().item()
+        train_acc = (total_correct / total_points).item()
         test_acc_dict = test_per_group(model, dataloader_test,
                                        group_mapping_fn, group_string_map)
         wga = min([value for key, value in test_acc_dict.items()])

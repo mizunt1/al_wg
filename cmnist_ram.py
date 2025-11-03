@@ -89,8 +89,6 @@ class ColoredMNISTRAM(datasets.VisionDataset):
         groups = torch.zeros(len(metadata[0]))
         groups = groups + y0g + y1g*2 + y0r*3
         return groups
-
-        
         
     def prepare_colored_mnist(self):
         train_mnist = datasets.mnist.MNIST(self.root, train=self.train, download=True)

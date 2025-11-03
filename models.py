@@ -78,7 +78,7 @@ class BayesianNet(mc_dropout.BayesianModule):
     # https://github.com/BlackHC/BatchBALD/blob/master/src/mnist_model.py
     def __init__(self, num_classes):
         super().__init__(num_classes)
-
+        self.batchnorm = nn.BatchNorm2d(3, affine=False)
         self.conv1 = nn.Conv2d(3, 32, kernel_size=5)
         self.conv1_drop = mc_dropout.MCDropout2d()
         self.conv2 = nn.Conv2d(32, 64, kernel_size=5)
@@ -88,6 +88,7 @@ class BayesianNet(mc_dropout.BayesianModule):
         self.fc2 = nn.Linear(128, num_classes)
 
     def mc_forward_impl(self, input):
+        input = self.batchnorm(input)
         input = F.relu(F.max_pool2d(self.conv1_drop(self.conv1(input)), 2))
         input = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(input)), 2))
         input = input.view(-1, 1024)
@@ -325,67 +326,3 @@ class CMLineardo(nn.Module):
         out = self.layer2(out)
         return out
 
-def erm(model, data, label, transforms, num_epochs=140, lr=1e-2,
-        log_interval=5, weight_classes=True):
-    model.train()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    if weight_classes:
-        _, counts = np.unique(label, return_counts=True)
-        weight = torch.from_numpy(1/counts.astype('float32'))
-    else:
-        weight = None
-    loss_fn = nn.CrossEntropyLoss(weight=weight) 
-    #data,target = torch.stack(data), torch.stack(target)
-    #data, target = data.to(device), target.to(device)
-    data = transforms(data).squeeze(0)
-    for epoch in range(num_epochs):
-        #data, target = data.to(device), target.to(device)
-        optimizer.zero_grad()
-        output = model(data)
-        #l1_norm = sum(p.abs().sum() for p in model.parameters())
-        loss = loss_fn(output, label) #+ l1_norm*0.05
-        loss.backward()
-        optimizer.step()
-        correct = (output.argmax(axis=1) == label).sum()/len(label)
-        if epoch % log_interval == 0:
-            print('Train epoch: {} Loss: {:.3f} correct prop train: {:.3f}' .format(
-                epoch, loss.item(), correct))
-    return correct, model
-
-def batch_erm(model, data, label, transforms, num_epochs=140, lr=1e-2,
-        log_interval=5, weight_classes=True):
-    model.train()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    if weight_classes:
-        _, counts = np.unique(label, return_counts=True)
-        weight = torch.from_numpy(1/counts.astype('float32'))
-    else:
-        weight = None
-    loss_fn = nn.CrossEntropyLoss(weight=weight) 
-    #data,target = torch.stack(data), torch.stack(target)
-    #data, target = data.to(device), target.to(device)
-    data = transforms(data).squeeze(0)
-    for epoch in range(num_epochs):
-        #data, target = data.to(device), target.to(device)
-        optimizer.zero_grad()
-        output = model(data)
-        #l1_norm = sum(p.abs().sum() for p in model.parameters())
-        loss = loss_fn(output, label) #+ l1_norm*0.05
-        loss.backward()
-        optimizer.step()
-        correct = (output.argmax(axis=1) == label).sum()/len(label)
-        if epoch % log_interval == 0:
-            print('Train epoch: {} Loss: {:.3f} correct prop train: {:.3f}' .format(
-                epoch, loss.item(), correct))
-    return correct, model
-
-
-def test(model, data, label, transforms):
-    #data, target = data.to(device), target.to(device)
-    # data, target = torch.FloatTensor(data).to(device), torch.FloatTensor(target).to(device)
-    data = transforms(data).squeeze(0)
-    model.eval()
-    output = model(data)
-    correct = (output.argmax(axis=1) == label).sum()/len(label)
-
-    return correct

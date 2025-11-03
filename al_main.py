@@ -35,6 +35,9 @@ def main(args):
     to_log = collections.defaultdict(list)
     log_term_log = collections.defaultdict(list)
     print("loading data")
+    model = getattr(models, args.model_name)
+    
+
     if args.data_mode == 'wb':
         if args.data_wo_sources:
             dataset, training_data_dict, test_data_dict = waterbirds(args.num_minority_points,
@@ -52,6 +55,7 @@ def main(args):
                                                                       root_dir="/network/scratch/m/"
                                                                       "mizu.nishikawa-toomey/waterbird_larger")
             true_group_in_loss = False
+        model = model(2, args.pretrained, args.frozen_weights)
 
     if args.data_mode == 'celeba':
         if args.data_wo_sources:
@@ -64,15 +68,13 @@ def main(args):
                                                                            args.num_majority_points,
                                                                            batch_size=args.batch_size)
             true_group_in_loss = False
-
+        model = model(2, args.pretrained, args.frozen_weights)
     if args.data_mode == 'cmnist':
         dataset, training_data_dict, test_data_dict = cmnist_n_sources(args.num_minority_points, args.num_majority_points,
                                                                        n_maj_sources=3)
         true_group_in_loss = False
-        
+        model = model(2)
     print("data loaded")
-    model = getattr(models, args.model_name)
-    model = model(2, args.pretrained, args.frozen_weights)
 
     num_groups = len(training_data_dict)
     samples_per_group = int(args.al_size / num_groups)

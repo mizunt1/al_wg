@@ -170,7 +170,7 @@ def calc_ent_per_point_batched(model, dataloader, num_models=100, mean=False, mi
             out = mi_drop_out(model, data, num_models=num_models)
         else:
             out = entropy_drop_out(model, data, num_models=num_models)
-        ents.extend(out.tolist())
+        ents.extend(out.cpu().tolist())
     if mean:
         return sum(ents)/len(ents)
     else:
@@ -215,7 +215,7 @@ def test_batched_per_group(model, dataloader_test, num_groups):
         data, target = data.to(device), target.to(device)
         output = model(data).squeeze(1)
         out = output.argmax(axis=1)
-        correct_array.extend((out == target).tolist())
+        correct_array.extend((out == target).cpu().tolist())
         group_array.extend(group_id.tolist())
     for i in range(num_groups):
         group_accs = np.array(correct_array) @ (np.array(group_array)==i)
