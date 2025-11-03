@@ -109,7 +109,7 @@ def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources
     return dataset, data_sources, test_data_dict
 
 
-def celeba(num_minority_points, num_majority_points, batch_size, root_dir='/tmp/', img_size=None):
+def celeba(num_minority_points, num_majority_points, root_dir='/tmp/', img_size=None):
     # Note that minority group is blond male and non blond female
     # celeba dataset must be moved with the following command to /tmp/
     # cp -r /network/scratch/m/mizu.nishikawa-toomey/celeba /tmp/
@@ -156,7 +156,7 @@ def celeba(num_minority_points, num_majority_points, batch_size, root_dir='/tmp/
 
     return blond_male, training_data_dict, test_data_dict
 
-def celeba_n_sources(num_minority_points, num_majority_points, batch_size, n_maj_sources = 3, root_dir='/tmp/', img_size=None):
+def celeba_n_sources(num_minority_points, num_majority_points, n_maj_sources = 3, root_dir='/tmp/', img_size=None):
     #  minority group is mb fnb
     # celeba dataset must be moved with the following command to /tmp/
     # cp -r /network/scratch/m/mizu.nishikawa-toomey/celeba /tmp/
@@ -271,6 +271,39 @@ def celeba_non_sp_load(num_minority_points, num_majority_points, batch_size, roo
         shuffle=True, batch_size=batch_size)
 
     return training_data, test_data, training_data_dict, test_data_dict
+
+def cmnist_n_sources(num_minority_points, num_majority_points, n_maj_sources):
+    trans = transforms.Compose([transforms.ToTensor()])
+    start_idx = 0
+    data_sources = collections.defaultdict()
+
+    dataset = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                              causal_noise=0,
+                              transform=trans, start_idx=start_idx, num_samples=num_minority_points, 
+                              red=0, source_id=0)
+    data_sources[0] = dataset
+    start_idx += num_minority_points
+    num_majority_points_per_group = num_majority_points // n_maj_sources
+    for i in range(1, n_maj_sources + 1):
+        dataset = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                  causal_noise=0,
+                                  transform=trans, start_idx=start_idx, num_samples=num_majority_points_per_group, 
+                                  red=1, group_idx=i)
+        start_idx += num_majority_points_per_group
+        data_souces[i] = dataset
+    dataset0_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                      causal_noise=0,
+                                      transform=trans, start_idx=start_idx, num_samples=5000,
+                                      source_id=0, red=0)
+    start_idx += 5000
+    dataset1_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                      causal_noise=0,
+                                      transform=trans, start_idx=start_idx, num_samples=5000,
+                                      source_id=1, red=1)
+
+        
+    return dataset, data_sources, {'y0r': data0_unseen, 'y1r': data1_unseen}
+
 
 if __name__ == "__main__":
     training_data, test_data, training_data_dict = celebA(100, 1000, 20)

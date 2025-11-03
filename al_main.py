@@ -19,7 +19,7 @@ from trainer import train_batched, test_batched
 from acquisitions import (Random, UniformGroups,
                           EntropyPerGroup, AccuracyPerGroup, Entropy,
                           EntropyUniformGroups, MI, EntropyPerGroupNLargest, EntropyPerGroupOrdered)
-from data_loading import waterbirds, waterbirds_n_sources, celeba, celeba_n_sources
+from data_loading import waterbirds, waterbirds_n_sources, celeba, celeba_n_sources, cmnist_n_sources
 from torch.utils.data import ConcatDataset, DataLoader
 
 # to turn off wandb, export WANDB_MODE=disabled
@@ -64,6 +64,12 @@ def main(args):
                                                                            args.num_majority_points,
                                                                            batch_size=args.batch_size)
             true_group_in_loss = False
+
+    if args.data_mode == 'cmnist':
+        dataset, training_data_dict, test_data_dict = cmnist_n_sources(args.num_minority_points, args.num_majority_points,
+                                                                       n_maj_sources)
+        true_group_in_loss = False
+        
     print("data loaded")
     model = getattr(models, args.model_name)
     model = model(2, args.pretrained, args.frozen_weights)

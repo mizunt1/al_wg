@@ -42,7 +42,7 @@ class ColoredMNISTRAM(datasets.VisionDataset):
     def __init__(self, spurious_noise=0, causal_noise=0, train=True,
                  transform=None, num_samples=5000, start_idx=0,
                  add_digit=None, fiif=False, root='./data',
-                 group_idx=-1, specified_class=None, red=1):
+                 source_id=-1, specified_class=None, red=1):
         super(ColoredMNISTRAM, self).__init__(root, 
                                               transform=transform)
         self.start_idx = start_idx
@@ -55,7 +55,9 @@ class ColoredMNISTRAM(datasets.VisionDataset):
         self.specified_class = specified_class
         self.prepare_colored_mnist()
         self.add_digit = add_digit
-        self.group_idx = group_idx
+        self.source_id = source_id
+        self.group_string_map = {'y1r': 0, 'y0g':1, 'y1g': 2, 'y0r':3}
+        self.group_int_map = {value: key for key, value in self.group_string_map.items()}  
         
     def __getitem__(self, index):
         """
@@ -72,11 +74,24 @@ class ColoredMNISTRAM(datasets.VisionDataset):
             target = self.target_transform(target)
         if self.add_digit != None:
             img[0,0] = self.add_digit
-        return {'data': img, 'target': target, 'group_id': self.group_idx}
+        return {'data': img, 'target': target, 'source_id': self.source_id, 'metadata': (target, self.red)}
 
     def __len__(self):
         return len(self.data_label_tuples)
 
+    def group_mapping_fn(self.metadata):
+        target_y = metadata[0]
+        target_red = metadata[1]
+        y1r = (target_y == 1) & (target_red == 1)
+        y0g = (target_y == 0) & (target_red == 0)
+        y1g = (target_y == 1) & (target_red == 0)
+        y0r = (target_y == 0) & (target_red == 1)
+        groups = torch.zeros(len(metadata[0]))
+        groups = groups + y0g + y1g*2 + y0r*3
+        return groups
+
+        
+        
     def prepare_colored_mnist(self):
         train_mnist = datasets.mnist.MNIST(self.root, train=self.train, download=True)
         train_mnist = Subset(
