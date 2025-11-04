@@ -15,7 +15,7 @@ from trainer import train_batched
 from torch.utils.data import DataLoader
 from mc_dropout import set_dropout_p
 from torch.utils.data import ConcatDataset, DataLoader
-from data_loading import waterbirds, celeba
+from data_loading import waterbirds, celeba, cmnist_n_sources
 
 def main(args):
     wandb.init(
@@ -28,26 +28,19 @@ def main(args):
     torch.manual_seed(args.seed)
     results = pd.DataFrame()
     log = collections.defaultdict(list)
-    if args.data_mode == 'celeba':
-        datasize = [50, 100, 150, 200, 250, 300, 450, 500, 600, 700, 900, 1200, 1400, 2000]
-    elif args.data_mode == 'wb':
-        datasize = [50, 100, 150, 200, 250, 300, 450, 500, 600, 700, 900, 1200, 1400, 2000]
-    else:
-        pass
+    #datasize = [1000, 2000]
+    datasize = [50, 100, 150, 450, 500, 1200, 1400, 2000]
     for size in datasize:
         num_minority_points = int(size*args.minority_prop)
         num_majority_points = size-num_minority_points
         print('size '+ str(size))
         model = getattr(models, args.model_name)
-        model = model(2, args.pretrained, args.frozen_weights)
+
         if 'clip' in args.model_name.lower():
             model = model.float()
             img_size = 244
         else:
             img_size = None
-        if args.mc_drop_p != None:
-            set_dropout_p(model, args.mc_drop_p)
-            
         if args.data_mode == 'wb':
             dataset, training_data_dict, test_data_dict = waterbirds(num_minority_points,
                                                                      num_majority_points,
@@ -58,6 +51,7 @@ def main(args):
                                                                              num_majority_points,
                                                                              batch_size=args.batch_size,img_size=img_size)
             true_group_in_loss = True
+            model = model(2, args.pretrained, args.frozen_weights)
         if args.data_mode == 'celeba':
             dataset, training_data_dict, test_data_dict = celeba(num_minority_points,
                                                                  num_majority_points,
@@ -71,9 +65,21 @@ def main(args):
                                                                                  root_dir="/network/scratch/m/"
                                                                                  "mizu.nishikawa-toomey/waterbird_larger")
             true_group_in_loss = True
-    
+            model = model(2, args.pretrained, args.frozen_weights)
         # train model
-        num_groups = len(training_data_dict)
+        if args.data_mode == 'cmnist':
+            dataset, training_data_dict, test_data_dict = cmnist_n_sources(num_minority_points, num_majority_points,
+                                                                           n_maj_sources=1)
+            ood_dataset, ood_training_data_dict, ood_test_data_dict = waterbirds(num_minority_points,
+                                                                                 num_majority_points,
+                                                                                 metadata_path='metadata_larger.csv',
+                                                                                 img_size=128,
+                                                                                 root_dir="/network/scratch/m/"
+                                                                                 "mizu.nishikawa-toomey/waterbird_larger")
+            true_group_in_loss = True
+            #model = model(2)
+            model = model(2, args.pretrained, args.frozen_weights)
+            num_groups = len(training_data_dict)
         training_loader = DataLoader(ConcatDataset([*training_data_dict.values()]), batch_size=args.batch_size, shuffle=True)
         test_loader = DataLoader(ConcatDataset([*test_data_dict.values()]), batch_size=args.batch_size, shuffle=True)
         ood_test_loader = DataLoader(ConcatDataset([*ood_test_data_dict.values()]), batch_size=args.batch_size, shuffle=True)
@@ -86,6 +92,7 @@ def main(args):
         log.update({'train_acc': proportion_correct_train,
                     'num points': size,
                     'wga': wga})
+        log.update(proportion_correct_test)
         # calculate UQ metric 
         for group_name, data in test_data_dict.items():
             score_test = calc_ent_per_point_batched(
@@ -108,7 +115,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, default=30)
     parser.add_argument('--frozen_weights', default=False, action='store_true')
     parser.add_argument('--pretrained', default=True, action='store_false')
-    parser.add_argument('--gdro', default=True, action='store_false')
+    parser.add_argument('--gdro', default=False, action='store_true')
     parser.add_argument('--minority_prop', type=float, default=0.2)
     parser.add_argument('--mc_drop_p', type=float, default=None)
     parser.add_argument('--lr', type=float, default=1e-5)

@@ -179,7 +179,7 @@ if __name__ == "__main__":
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--num_minority_points', type=int, default=40)
+    parser.add_argument('--num_minority_points', type=int, default=400)
     parser.add_argument('--num_majority_points', type=int, default=4000)
     parser.add_argument('--al_iters', type=int, default=20)
     parser.add_argument('--al_size', type=int, default=30)
