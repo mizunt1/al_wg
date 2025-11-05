@@ -36,7 +36,6 @@ def main(args):
     log_term_log = collections.defaultdict(list)
     print("loading data")
     model = getattr(models, args.model_name)
-    
 
     if args.data_mode == 'wb':
         if args.data_wo_sources:
@@ -60,20 +59,17 @@ def main(args):
     if args.data_mode == 'celeba':
         if args.data_wo_sources:
             dataset, training_data_dict, test_data_dict = celeba(args.num_minority_points,
-                                                                 args.num_majority_points,
-                                                                 batch_size=args.batch_size)
+                                                                 args.num_majority_points)
             true_group_in_loss = True
         else:
             dataset, training_data_dict, test_data_dict = celeba_n_sources(args.num_minority_points,
-                                                                           args.num_majority_points,
-                                                                           batch_size=args.batch_size)
+                                                                           args.num_majority_points)
             true_group_in_loss = False
-        model = model(2, args.pretrained, args.frozen_weights)
     if args.data_mode == 'cmnist':
         dataset, training_data_dict, test_data_dict = cmnist_n_sources(args.num_minority_points, args.num_majority_points,
-                                                                       n_maj_sources=3)
+                                                                       n_maj_sources=args.n_maj_sources)
         true_group_in_loss = False
-        model = model(2)
+        model = model(2, args.pretrained, args.frozen_weights)
     print("data loaded")
 
     num_groups = len(training_data_dict)
@@ -81,38 +77,27 @@ def main(args):
     group_dict_uniform_groups = {key: samples_per_group for key in range(num_groups)}
     al_data = ActiveLearningDataGroups([*training_data_dict.values()], [*test_data_dict.values()], 2, args.batch_size)
 
-    # IDT: To fix acqusition imports
     method_map = {
-        'random': Random,
-        'uniform_groups': UniformGroups,
-        'entropy_per_group': EntropyPerGroup,
-        'accuracy': AccuracyPerGroup,
-        'entropy': Entropy,
-        'mi': MI,
-        'entropy_uniform_groups': EntropyUniformGroups,
-        'entropy_per_group_n_largest': EntropyPerGroupNLargest,
-        'entropy_per_group_ordered': EntropyPerGroupOrdered}
-
-    kwargs_map = {'random': {'al_data': al_data, 'al_size': args.al_size},
-                  'uniform_groups': {'al_data': al_data, 'group_proportions': group_dict_uniform_groups},
-                  'entropy_per_group': {'al_data': al_data, 'al_size':args.al_size, 'temperature': args.temperature},
-                  'entropy_per_group_n_largest': {'al_data': al_data, 'al_size':args.al_size, 'n': args.n_size},
-                  'entropy_per_group_ordered': {'al_data': al_data, 'al_size':args.al_size},
-                  'entropy': {'al_data': al_data, 'al_size': args.al_size},
-                  'mi': {'al_data': al_data, 'al_size': args.al_size},
-                  'accuracy': {'al_data': al_data, 'al_size': args.al_size},
-                  'entropy_uniform_groups':{'al_data': al_data, 'al_size': args.al_size,
-                                            'group_proportions': group_dict_uniform_groups}}
-
+        'random': Random(al_data, args.al_size),
+        'uniform_groups': UniformGroups(al_data, group_dict_uniform_groups),
+        'entropy_per_group': EntropyPerGroup(al_data=al_data, al_size=args.al_size,
+                                             temperature=args.temperature, num_groups=num_groups),
+        'entropy': Entropy(al_data=al_data, al_size=args.al_size),
+        'mi': MI(al_data=al_data, al_size=args.al_size),
+        'entropy_uniform_groups': EntropyUniformGroups(al_data=al_data, al_size=args.al_size),
+        'entropy_per_group_n_largest': EntropyPerGroupNLargest(al_data=al_data, al_size=args.al_size, n=args.n_groups_size)}
+    mi = False
+    if args.acquisition == 'mi':
+        mi = True
     # initial random or uniform acquisition to start with
-    acquisition_method = method_map[args.start_acquisition](**kwargs_map[args.start_acquisition])
+    acquisition_method = method_map[args.start_acquisition]
     indices = acquisition_method.return_indices()
     al_data.acquire_with_indices(indices)
         
     for i in range(1, args.al_iters):
         print('al iteration: ', i)
         # setting up trainig
-        acquisition_method = method_map[args.acquisition](**kwargs_map[args.acquisition])
+        acquisition_method = method_map[args.acquisition]
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
         model = getattr(models, args.model_name)
@@ -133,27 +118,8 @@ def main(args):
                        'wga': wga})
 
         # IDT FIX acquisition imports
-        mi = False
         # calculate score over pool depending on acquisition method
-        if args.acquisition in ['random', 'uniform_groups']:
-            to_log_acq = None
-        elif args.acquisition == 'entropy_per_group':
-            to_log_acq = acquisition_method.information_for_acquisition(model, num_groups)
-        elif args.acquisition == 'entropy_per_group_n_largest':
-            to_log_acq = acquisition_method.information_for_acquisition(model, num_groups)
-        elif args.acquisition == 'entropy_per_group_ordered':
-            to_log_acq = acquisition_method.information_for_acquisition(model, num_groups)
-        elif args.acquisition == 'entropy':
-            to_log_acq = acquisition_method.information_for_acquisition(model)
-        elif args.acquisition == 'mi':
-            to_log_acq = acquisition_method.information_for_acquisition(model)
-            mi = True
-        elif args.acquisition == 'accuracy':
-            to_log_acq = acquisition_method.information_for_acquisition(model, indices, num_groups, k=3)
-        elif args.acquisition == 'entropy_uniform_groups':
-            to_log_acq = acquisition_method.information_for_acquisition(model, num_groups)
-        else:
-            print('acquisition not recognised')
+        to_log_acq = acquisition_method.information_for_acquisition(model)
         if to_log_acq != None:    
             to_log.update({'average entropy for source ' + str(key) : value for key, value in to_log_acq.items()})
         
@@ -166,14 +132,13 @@ def main(args):
             score_test = calc_ent_per_point_batched(
                 model, DataLoader(data, batch_size=args.batch_size), mean=True, mi=mi)
             to_log.update({f'ent {group_name}': score_test})
-        to_log.update({f"group {dataset.group_int_map[key]} in train" : value for key, value in groups_in_train.items()})
         to_log.update({f"source {key}  in train" : value for key, value in groups_in_train.items()})
         to_log.update(proportion_correct_test)
         wandb.log(to_log) 
         pprint(to_log)
         long_term_log = log_dict(log_term_log, to_log)
-    plot_dictionary(log)
-    return log
+    plot_dictionary(to_log)
+    return to_log
 
 if __name__ == "__main__":
     from argparse import ArgumentParser
@@ -183,9 +148,10 @@ if __name__ == "__main__":
     parser.add_argument('--num_majority_points', type=int, default=4000)
     parser.add_argument('--al_iters', type=int, default=20)
     parser.add_argument('--al_size', type=int, default=30)
-    parser.add_argument('--n_size', type=int, default=1)
+    parser.add_argument('--n_maj_sources', type=int, default=3)
+    parser.add_argument('--n_groups_size', type=int, default=1)
     parser.add_argument('--num_epochs', type=int, default=1)
-    parser.add_argument('--batch_size', type=int, default=100)
+    parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--size', type=int, default=-1)
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--weight_decay', type=float, default=0)
