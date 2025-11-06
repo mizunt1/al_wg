@@ -55,10 +55,7 @@ def plot_dictionary(data):
     axes[2].set_title('train acc')
     axes[2].grid(True)
 
-    axes[3].plot(data['test_acc'], label='test_acc', color='black')
-    axes[3].set_title('test acc')
-    axes[3].grid(True)
-
+    
     axes[4].plot(data['num points'], label='num points', color='black')
     axes[4].set_title('num_points')
     axes[4].grid(True)
@@ -154,14 +151,16 @@ def calc_ent_batched(model, dataloader, num_models=100):
         num_points += len(target)
     return (total_ent/num_points).cpu().item(), (total_xent/num_points).cpu().item(), vars_.cpu().item()
 
-def calc_ent_per_point_batched(model, dataloader, num_models=100, mean=False, mi=False):
+def calc_ent_per_point_batched(model, dataloader, num_models=100, mean=False, mi=False, sampled_batches=None):
     use_cuda = True
     num_points = 0
     device = torch.device("cuda" if use_cuda else "cpu")
     model.train()
     model.to(device)
     ents = []
+    batches = 0
     for batch_idx, out_dict in enumerate(dataloader):
+        batches += 1
         data = out_dict['data']
 
         data = data.to(device).float()
@@ -171,6 +170,10 @@ def calc_ent_per_point_batched(model, dataloader, num_models=100, mean=False, mi
         else:
             out = entropy_drop_out(model, data, num_models=num_models)
         ents.extend(out.cpu().tolist())
+        if (sampled_batches != None):
+            if (batches > sampled_batches):
+                break
+
     if mean:
         return sum(ents)/len(ents)
     else:

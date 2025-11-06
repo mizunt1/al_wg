@@ -23,6 +23,7 @@ from data_loading import waterbirds, waterbirds_n_sources, celeba, celeba_n_sour
 from torch.utils.data import ConcatDataset, DataLoader
 
 # to turn off wandb, export WANDB_MODE=disabled
+
 def main(args):
     wandb.init(
         project=args.project_name,
@@ -63,7 +64,7 @@ def main(args):
             true_group_in_loss = True
         else:
             dataset, training_data_dict, test_data_dict = celeba_n_sources(args.num_minority_points,
-                                                                           args.num_majority_points)
+                                                                           args.num_majority_points, args.n_maj_sources)
             true_group_in_loss = False
     if args.data_mode == 'cmnist':
         dataset, training_data_dict, test_data_dict = cmnist_n_sources(args.num_minority_points, args.num_majority_points,
@@ -85,7 +86,7 @@ def main(args):
         'entropy': Entropy(al_data=al_data, al_size=args.al_size),
         'mi': MI(al_data=al_data, al_size=args.al_size),
         'entropy_uniform_groups': EntropyUniformGroups(al_data=al_data, al_size=args.al_size),
-        'entropy_per_group_n_largest': EntropyPerGroupNLargest(al_data=al_data, al_size=args.al_size, n=args.n_groups_size)}
+        'entropy_per_group_n_largest': EntropyPerGroupNLargest(al_data=al_data, al_size=args.al_size, n=args.n_groups_size, num_groups=num_groups)}
     mi = False
     if args.acquisition == 'mi':
         mi = True
@@ -110,7 +111,8 @@ def main(args):
             dataloader_test=dataloader_test, lr=args.lr, num_epochs=args.num_epochs,
             num_groups=num_groups, weight_decay=args.weight_decay,
             group_mapping_fn=dataset.group_mapping_fn, gdro=args.gdro,
-            group_string_map=dataset.group_string_map, true_group_in_loss=true_group_in_loss)
+            group_string_map=dataset.group_string_map,
+            true_group_in_loss=true_group_in_loss, sample_batch_test=args.num_batch_test_samples)
 
         # log training
         to_log.update({'train_acc': proportion_correct_train,
@@ -130,7 +132,8 @@ def main(args):
         # compute metrics and logging for debugging
         for group_name, data in test_data_dict.items():
             score_test = calc_ent_per_point_batched(
-                model, DataLoader(data, batch_size=args.batch_size), mean=True, mi=mi)
+                model, DataLoader(data, batch_size=args.batch_size), mean=True, mi=mi,
+                sampled_batches=args.num_batch_test_samples)
             to_log.update({f'ent {group_name}': score_test})
         to_log.update({f"source {key}  in train" : value for key, value in groups_in_train.items()})
         to_log.update(proportion_correct_test)
@@ -145,6 +148,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--num_minority_points', type=int, default=400)
+    parser.add_argument('--num_batch_test_samples', type=int, default=100)
     parser.add_argument('--num_majority_points', type=int, default=4000)
     parser.add_argument('--al_iters', type=int, default=20)
     parser.add_argument('--al_size', type=int, default=30)

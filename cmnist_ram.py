@@ -1,5 +1,4 @@
 import os
-
 import torch
 import torch.nn as nn
 from torchvision import datasets
@@ -10,7 +9,7 @@ import torch.optim as optim
 import collections
 
 def color_grayscale_arr(arr, red=True):
-    """Converts grayscale image to either red or green"""
+    """Converts Grayscale image to either red or green"""
     assert arr.ndim == 2
     dtype = arr.dtype
     h, w = arr.shape

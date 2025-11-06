@@ -14,7 +14,8 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
                   weight_decay=0, lr=0.001, flatten=False, gdro=False, num_groups=None,
                   model_checkpoint_path='/network/scratch/m/mizu.nishikawa-toomey/waterbird_cp/',
                   wandb=False, group_mapping_fn=None, group_string_map={}, group_key='metadata',
-                  true_group_in_loss=True):
+                  true_group_in_loss=True, sample_batch_test=None):
+    train_acc_has_surpassed = False
     now = datetime.now()
     formatted_full = now.strftime("%A, %B %d, %Y %H:%M:%S")
     path = model_checkpoint_path + formatted_full + 'model.pt'
@@ -73,22 +74,27 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
                 groups.extend(group_in_loss)
 
         train_acc = (total_correct / total_points).item()
-        test_acc_dict = test_per_group(model, dataloader_test,
-                                       group_mapping_fn, group_string_map)
-        wga = min([value for key, value in test_acc_dict.items()])
         if train_acc >0.80:
+            train_acc_has_surpassed = True
+            # only calculate test acc on epochs when acc is high to save on computing it
+            test_acc_dict = test_per_group(model, dataloader_test,
+                                           group_mapping_fn, group_string_map,
+                                           sampled_batches=sample_batch_test)
+            wga = min([value for key, value in test_acc_dict.items()])
             early_stopping(-wga, model, test_acc_dict)
             if early_stopping.early_stop:
                 print('early stopping at epoch ' + str(epoch))
                 test_acc_dict = early_stopping.test_acc_dict
                 wga = -early_stopping.val_loss_min
                 break
+            print(test_acc_dict)
             
         print('epoch ' + str(epoch))    
         print('train acc '+ str(train_acc))
         print('loss' + str(loss.detach()))
-        print(test_acc_dict)
+
         if wandb != False:
+            # for logging each epoch for training
             test_acc_dict.update({'train acc': train_acc})
             test_acc_dict.update({'wga': wga})
             wandb.log(test_acc)
@@ -96,7 +102,12 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
         # counting the number of points in each group
         # in the training data
         group_count_dict[i] = sum(np.array(groups) == i)
-        
+    if not train_acc_has_surpassed:
+        # if train acc has not surpassed 80 through all epochs, need to calc test acc here
+        test_acc_dict = test_per_group(model, dataloader_test,
+                                       group_mapping_fn, group_string_map)
+        wga = min([value for key, value in test_acc_dict.items()])
+        print(test_acc_dict)
     return train_acc, test_acc_dict, group_count_dict, wga
 
 def test_batched(model, dataloader_test, device):
@@ -113,7 +124,7 @@ def test_batched(model, dataloader_test, device):
         total_points_test += len(target)
     return (total_correct_test/total_points_test).cpu().item()
 
-def test_per_group(model, test_loader, group_mapping_fn, group_string_map):
+def test_per_group(model, test_loader, group_mapping_fn, group_string_map, sampled_batches=None):
     # group mapping maps metadata to an integer that identifies a group
     # group_string_map is a dictionary mapping group integers to strings
     
@@ -124,7 +135,9 @@ def test_per_group(model, test_loader, group_mapping_fn, group_string_map):
     device = torch.device("cuda" if use_cuda else "cpu")
     correct_dict = dict.fromkeys(group_string_map.keys(), 0)
     sum_dict = dict.fromkeys(group_string_map.keys(), 1e-3)
+    batches = 0
     for data_dict in test_loader:
+        batches += 1
         data = data_dict['data']
         y = data_dict['target']
         meta = data_dict['metadata']
@@ -137,5 +150,9 @@ def test_per_group(model, test_loader, group_mapping_fn, group_string_map):
             total = sum(group_ids == group_id).item()
             correct_dict[group_name] += correct
             sum_dict[group_name] +=total
+        if (sampled_batches != None):
+            if (batches > sampled_batches):
+                break
+    
     test_acc_final = {key + ' test acc' : correct_dict[key] / sum_dict[key] for key in correct_dict}
     return test_acc_final

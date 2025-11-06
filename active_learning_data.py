@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 class ActiveLearningDataGroups():
-    def __init__(self, datasets, dataset_test, num_workers=4, batch_size=64):
+    def __init__(self, datasets, dataset_test, num_workers=4, batch_size=64, batch_size_test=64):
         if isinstance(datasets, list):
             self.dataset_list = datasets
             self.dataset = torch.utils.data.ConcatDataset(datasets)
@@ -25,6 +25,7 @@ class ActiveLearningDataGroups():
         self.num_workers = num_workers
         self._update_indices()
         self.batch_size = batch_size
+        self.batch_size_test = batch_size_test
 
     def _update_indices(self):
         self.pool.indices = np.nonzero(self.pool_mask)[0]
@@ -90,4 +91,4 @@ class ActiveLearningDataGroups():
     def get_train_and_test_loader(self, batch_size):
         return (DataLoader(self.train, batch_size=self.batch_size,
                            num_workers=self.num_workers, pin_memory=True, shuffle=True),
-                DataLoader(self.dataset_test, batch_size=batch_size, shuffle=True))
+                DataLoader(self.dataset_test, batch_size=self.batch_size_test, shuffle=True))
