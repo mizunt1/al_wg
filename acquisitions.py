@@ -77,7 +77,7 @@ class EntropyPerGroupNLargest(ActiveLearningAcquisitions):
 
     def _largest_ent_group(self, model, dataloader, al_size):
         group_ents = calc_ent_per_group_batched(model, dataloader, self.num_groups)
-        max_groups0 = sorted(group_ents.items(), key=lambda item: item[1])[self.n:]
+        max_groups0 = sorted(group_ents.items(), key=lambda item: item[1])[-self.n:]
         max_groups = [item[0] for item in max_groups0]
         group_prop = {key:0 for key, items in group_ents.items()}
         sample_per_group = al_size // self.n
