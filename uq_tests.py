@@ -15,7 +15,7 @@ from trainer import train_batched
 from torch.utils.data import DataLoader
 from mc_dropout import set_dropout_p
 from torch.utils.data import ConcatDataset, DataLoader
-from data_loading import waterbirds, celeba, cmnist_n_sources
+from data_loading import waterbirds, celeba, cmnist_n_sources, iwildcam_n_sources, camelyon17
 
 def main(args):
     wandb.init(
@@ -29,7 +29,8 @@ def main(args):
     results = pd.DataFrame()
     log = collections.defaultdict(list)
     #datasize = [1000, 2000]
-    datasize = [50, 100, 150, 450, 500, 1200, 1400, 2000]
+    #datasize = [50, 100, 150, 450, 500, 1200, 1400, 2000]
+    datasize = [50, 100, 200, 500]
     for size in datasize:
         num_minority_points = int(size*args.minority_prop)
         num_majority_points = size-num_minority_points
@@ -51,7 +52,6 @@ def main(args):
                                                                              num_majority_points,
                                                                              batch_size=args.batch_size,img_size=img_size)
             true_group_in_loss = True
-            model = model(2, args.pretrained, args.frozen_weights)
         if args.data_mode == 'celeba':
             dataset, training_data_dict, test_data_dict = celeba(num_minority_points,
                                                                  num_majority_points,
@@ -65,11 +65,10 @@ def main(args):
                                                                                  root_dir="/network/scratch/m/"
                                                                                  "mizu.nishikawa-toomey/waterbird_larger")
             true_group_in_loss = True
-            model = model(2, args.pretrained, args.frozen_weights)
         # train model
         if args.data_mode == 'cmnist':
             dataset, training_data_dict, test_data_dict = cmnist_n_sources(num_minority_points, num_majority_points,
-                                                                           n_maj_sources=1)
+                                                                           n_maj_sources=args.n_maj_sources)
             ood_dataset, ood_training_data_dict, ood_test_data_dict = waterbirds(num_minority_points,
                                                                                  num_majority_points,
                                                                                  metadata_path='metadata_larger.csv',
@@ -77,9 +76,34 @@ def main(args):
                                                                                  root_dir="/network/scratch/m/"
                                                                                  "mizu.nishikawa-toomey/waterbird_larger")
             true_group_in_loss = True
-            #model = model(2)
-            model = model(2, args.pretrained, args.frozen_weights)
-            num_groups = len(training_data_dict)
+
+        if args.data_mode == 'iwildcam':
+            dataset, training_data_dict, test_data_dict = iwildcam_n_sources(n_sources=args.n_maj_sources, max_training_data_size=size)
+            ood_dataset, ood_training_data_dict, ood_test_data_dict = waterbirds(num_minority_points,
+                                                                                 num_majority_points,
+                                                                                 metadata_path='metadata_larger.csv',
+                                                                                 img_size=128,
+                                                                                 root_dir="/network/scratch/m/"
+                                                                                 "mizu.nishikawa-toomey/waterbird_larger")
+            group_string_map = {key: key for key, value in training_data_dict.items()}
+            dataset.set_group_string_map(group_string_map)
+            true_group_in_loss = True
+
+        if args.data_mode == 'camelyon':
+            group_proportions = [0.25, 0.33, 0.02, 0.4]
+            dataset, training_data_dict, test_data_dict = camelyon17(max_training_data_size=size, group_proportions=group_proportions)
+            ood_dataset, ood_training_data_dict, ood_test_data_dict = waterbirds(num_minority_points,
+                                                                                 num_majority_points,
+                                                                                 metadata_path='metadata_larger.csv',
+                                                                                 img_size=128,
+                                                                                 root_dir="/network/scratch/m/"
+                                                                                 "mizu.nishikawa-toomey/waterbird_larger")
+            group_string_map = {str(key): key for key, value in training_data_dict.items()}
+            dataset.set_group_string_map(group_string_map)
+            true_group_in_loss = True
+
+        model = model(2, args.pretrained, args.frozen_weights)
+        num_groups = len(training_data_dict)
         training_loader = DataLoader(ConcatDataset([*training_data_dict.values()]), batch_size=args.batch_size, shuffle=True)
         test_loader = DataLoader(ConcatDataset([*test_data_dict.values()]), batch_size=args.batch_size, shuffle=True)
         ood_test_loader = DataLoader(ConcatDataset([*ood_test_data_dict.values()]), batch_size=args.batch_size, shuffle=True)
@@ -113,6 +137,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--num_epochs', type=int, default=30)
     parser.add_argument('--batch_size', type=int, default=30)
+    parser.add_argument('--n_maj_sources', type=int, default=4)
     parser.add_argument('--frozen_weights', default=False, action='store_true')
     parser.add_argument('--pretrained', default=True, action='store_false')
     parser.add_argument('--gdro', default=False, action='store_true')

@@ -2,7 +2,9 @@ import torch
 from torchvision import transforms
 import random
 from waterbirds_dataset import WaterbirdsDataset
+from iwildcam_dataset import IWildCamDataset
 from torchvision import transforms
+from camelyon17_dataset import Camelyon17Dataset
 from cmnist_ram import ColoredMNISTRAM
 from celeba import CelebA
 import numpy as np
@@ -32,19 +34,19 @@ def waterbirds(num_minority_points, num_majority_points,
     num_lw_points = num_minority_points //2
     num_ww_points = num_majority_points //2
     num_ll_points = num_majority_points //2
-
-    trainingwl_data = dataset.get_subset("wl_train", transform=trans, num_points=num_wl_points)
-    traininglw_data = dataset.get_subset("lw_train", num_points=num_lw_points, transform=trans)
-    trainingww_data = dataset.get_subset("ww_train", num_points=num_ww_points, transform=trans)
-    trainingll_data = dataset.get_subset("ll_train", num_points=num_ll_points, transform=trans)
+    rng_state = np.random.get_state()
+    trainingwl_data = dataset.get_subset(rng_state, "wl_train", transform=trans, num_points=num_wl_points)
+    traininglw_data = dataset.get_subset(rng_state, "lw_train", num_points=num_lw_points, transform=trans)
+    trainingww_data = dataset.get_subset(rng_state, "ww_train", num_points=num_ww_points, transform=trans)
+    trainingll_data = dataset.get_subset(rng_state, "ll_train", num_points=num_ll_points, transform=trans)
     print(f"Training data used sizes wl : {len(trainingwl_data)}, lw : {traininglw_data}, ww: {trainingww_data}, ll: {trainingll_data}")
 
-    ww_test = dataset.get_subset("ww_test", transform=trans)
-    wl_test = dataset.get_subset("wl_test", transform=trans)
-    ll_test = dataset.get_subset("ll_test", transform=trans)
-    lw_test = dataset.get_subset("lw_test", transform=trans)
+    ww_test = dataset.get_subset(rng_state, "ww_test", transform=trans)
+    wl_test = dataset.get_subset(rng_state, "wl_test", transform=trans)
+    ll_test = dataset.get_subset(rng_state, "ll_test", transform=trans)
+    lw_test = dataset.get_subset(rng_state, "lw_test", transform=trans)
 
-    val_data = dataset.get_subset("val", transform=trans)
+    val_data = dataset.get_subset(rng_state, "val", transform=trans)
 
     training_data_dict = {'wl_train': trainingwl_data, 'lw_train': traininglw_data,
                           'ww_train': trainingww_data, 'll_train': trainingll_data}
@@ -72,11 +74,12 @@ def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources
     dataset = WaterbirdsDataset(version='larger', root_dir=root_dir, download=True,
                                 split_scheme=split_scheme, split_names=split_names,
                                 metadata_name=metadata_path, use_rep=False)
-    testww_data = dataset.get_subset("ww_test", transform=trans)
-    testwl_data = dataset.get_subset("wl_test", transform=trans)
-    testll_data = dataset.get_subset("ll_test", transform=trans)
-    testlw_data = dataset.get_subset("lw_test", transform=trans)
-    val_data = dataset.get_subset("val", transform=trans)
+    rng_state = np.random.get_state()
+    testww_data = dataset.get_subset(rng_state, "ww_test", transform=trans)
+    testwl_data = dataset.get_subset(rng_state, "wl_test", transform=trans)
+    testll_data = dataset.get_subset(rng_state, "ll_test", transform=trans)
+    testlw_data = dataset.get_subset(rng_state, "lw_test", transform=trans)
+    val_data = dataset.get_subset(rng_state, "val", transform=trans)
     ##### training data min group #####
     num_wl_points = num_minority_points //2
     num_lw_points = num_minority_points //2
@@ -85,9 +88,9 @@ def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources
     num_ll_points = num_majority_points //2
     num_ww_points_per_group = num_ww_points //(n_maj_sources)
     num_ll_points_per_group = num_ll_points //(n_maj_sources)
-
-    trainingwl_data = dataset.get_subset("wl_train", num_points=num_wl_points, transform=trans, source_id=0)
-    traininglw_data = dataset.get_subset("lw_train", num_points=num_lw_points, transform=trans, source_id=0)
+    rng_state = np.random.get_state()
+    trainingwl_data = dataset.get_subset(rng_state, "wl_train", num_points=num_wl_points, transform=trans, source_id=0)
+    traininglw_data = dataset.get_subset(rng_state, "lw_train", num_points=num_lw_points, transform=trans, source_id=0)
     s0 = torch.utils.data.ConcatDataset([trainingwl_data, traininglw_data])
 
     data_sources = collections.defaultdict()
@@ -101,8 +104,8 @@ def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources
     for i in range(1, n_maj_sources+1):
         indxs_to_sample_ww = ww_idxs[int(i*(num_ww_points_per_group)):int((i+1)*(num_ww_points_per_group)) ]
         indxs_to_sample_ll = ll_idxs[int(i*(num_ww_points_per_group)):int((i+1)*(num_ww_points_per_group)) ]
-        ww_data_one_group = dataset.get_subset("ww_train", sample_idx=indxs_to_sample_ww, source_id=i, transform=trans)
-        ll_data_one_group = dataset.get_subset("ll_train", sample_idx=indxs_to_sample_ll, source_id=i, transform=trans)
+        ww_data_one_group = dataset.get_subset(rng_state, "ww_train", sample_idx=indxs_to_sample_ww, source_id=i, transform=trans)
+        ll_data_one_group = dataset.get_subset(rng_state, "ll_train", sample_idx=indxs_to_sample_ll, source_id=i, transform=trans)
         one_source = torch.utils.data.ConcatDataset([ww_data_one_group, ll_data_one_group])
         data_sources[i] = one_source
     test_data_dict = {'ww_test': testww_data, 'll_test': testll_data,
@@ -273,13 +276,72 @@ def celeba_non_sp_load(num_minority_points, num_majority_points, batch_size, roo
 
     return training_data, test_data, training_data_dict, test_data_dict
 
-def cmnist_n_sources(num_minority_points, num_majority_points, n_maj_sources):
+def iwildcam_n_sources(n_sources, max_training_data_size=None, img_size=None):
+    if img_size == None:
+        img_size = 512
+    trans = transforms.Compose(
+        [transforms.Resize((img_size, img_size)), transforms.ToTensor()])
+
+
+    dataset = IWildCamDataset(root_dir='/network/scratch/m/mizu.nishikawa-toomey')
+    points = dataset.list_number_of_points_per_env()
+    sorted_points = {k: v for k, v in sorted(points.items(), key=lambda item: item[1])}
+    sorted_keys_top_15 = [*sorted_points.keys()][-15:]
+    # [101, 255, 188, 120, 2, 296, 307, 221, 139, 26, 54, 265, 230, 187, 288]
+    sorted_values_top_15 = [*sorted_points.values()][-15:]
+    # [3020, 3176, 3441, 3499, 3520, 3550, 3559, 3722, 3766, 3960, 3990, 4010, 4439, 7600, 8494]
+    data_sources = collections.defaultdict()
+    data_sources_test = collections.defaultdict()
+    for i in range(n_sources):
+        testing = dataset.get_subset_based_on_metadata(
+            sorted_keys_top_15[-i-1], index_col='location_remapped', sample_idx=[j for j in range(200)], transform=trans)
+        if max_training_data_size == None:
+            sample_idx = [j for j in range(200, sorted_values_top_15[-i-1])]
+        else:
+            sample_idx = [j for j in range(200, max_training_data_size + 200)]
+        training = dataset.get_subset_based_on_metadata(sorted_keys_top_15[-i-1], index_col='location_remapped', sample_idx=sample_idx,
+                                                        transform=trans)
+        data_sources[sorted_keys_top_15[-i-1]] = training
+        data_sources_test[sorted_keys_top_15[-i-1]] = testing
+    return dataset, data_sources, data_sources_test
+
+def camelyon17(max_training_data_size, group_proportions=[], img_size=None):
+    assert sum(group_proportions) == 1
+    if img_size == None:
+        img_size = 96
+    trans = transforms.Compose(
+        [transforms.Resize((img_size, img_size)), transforms.ToTensor()])
+    
+    dataset = Camelyon17Dataset(root_dir='/network/scratch/m/mizu.nishikawa-toomey')
+    index_col = 0
+    max_points = dataset.list_number_of_points_per_source()
+    data_sources = collections.defaultdict()
+    data_sources_test = collections.defaultdict()
+    rng_state = np.random.get_state()
+    for i in range(4):
+        testing = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=[j for j in range(200)], transform=trans)
+        if max_training_data_size == None:
+            sample_idx = [j for j in range(200, max_points[i])]
+        else:
+            if len(group_proportions) == 0:
+                data_size = max_training_data_size // 4
+            else:
+                data_size = int(max_training_data_size*group_proportions[i])
+            sample_idx = [j for j in range(200, data_size + 200)]
+        training = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=sample_idx,
+                                                        transform=trans)
+        data_sources[i] = training
+        data_sources_test[i] = testing
+
+    return dataset, data_sources, data_sources_test
+        
+def cmnist_n_sources(num_minority_points, num_majority_points, n_maj_sources, causal_noise=0):
     trans = transforms.Compose([transforms.ToTensor()])
     start_idx = 0
     data_sources = collections.defaultdict()
 
     dataset = ColoredMNISTRAM(root='./data', spurious_noise=0, 
-                              causal_noise=0,
+                              causal_noise=causal_noise,
                               transform=trans, start_idx=start_idx, num_samples=num_minority_points, 
                               red=0, source_id=0)
     data_sources[0] = dataset
@@ -287,7 +349,7 @@ def cmnist_n_sources(num_minority_points, num_majority_points, n_maj_sources):
     num_majority_points_per_group = num_majority_points // n_maj_sources
     for i in range(1, n_maj_sources + 1):
         dataset = ColoredMNISTRAM(root='./data', spurious_noise=0, 
-                                  causal_noise=0,
+                                  causal_noise=causal_noise,
                                   transform=trans, start_idx=start_idx, num_samples=num_majority_points_per_group, 
                                   red=1, source_id=i)
         start_idx += num_majority_points_per_group
@@ -307,4 +369,25 @@ def cmnist_n_sources(num_minority_points, num_majority_points, n_maj_sources):
 
 
 if __name__ == "__main__":
-    training_data, test_data, training_data_dict = celebA(100, 1000, 20)
+    from camelyon17_dataset import Camelyon17Dataset
+    dataset = Camelyon17Dataset(root_dir='/network/scratch/m/mizu.nishikawa-toomey')
+    import h5py    
+    file_name = '/network/scratch/m/mizu.nishikawa-toomey/camelyonpatch_level_2_split_train_y.h5'
+    f = h5py.File(file_name, 'r')
+    for key in f.keys():
+        print(key) #Names of the root level object names in HDF5 file - can be groups or datasets.
+        print(type(f[key])) # get the object type: usually group or dataset
+
+    import pdb
+    pdb.set_trace()
+
+    file_name = '/network/scratch/m/mizu.nishikawa-toomey/camelyonpatch_level_2_split_train_meta.csv'
+    import pandas as pd
+    df = pd.read_csv(file_name)
+
+    # from keras.utils import HDF5Matrix
+    
+    # from keras.preprocessing.image import ImageDataGenerator
+
+    # x_train = HDF5Matrix('camelyonpatch_level_2_split_train_x.h5-002', 'x')
+    # y_train = HDF5Matrix('camelyonpatch_level_2_split_train_y.h5', 'y')

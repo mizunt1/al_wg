@@ -19,7 +19,8 @@ from trainer import train_batched, test_batched
 from acquisitions import (Random, UniformGroups,
                           EntropyPerGroup, AccuracyPerGroup, Entropy,
                           EntropyUniformGroups, MI, EntropyPerGroupNLargest, EntropyPerGroupOrdered)
-from data_loading import waterbirds, waterbirds_n_sources, celeba, celeba_n_sources, cmnist_n_sources
+from data_loading import (waterbirds, waterbirds_n_sources, celeba, celeba_n_sources,
+                          cmnist_n_sources, iwildcam_n_sources, camelyon17)
 from torch.utils.data import ConcatDataset, DataLoader
 
 # to turn off wandb, export WANDB_MODE=disabled
@@ -68,9 +69,23 @@ def main(args):
             true_group_in_loss = False
     if args.data_mode == 'cmnist':
         dataset, training_data_dict, test_data_dict = cmnist_n_sources(args.num_minority_points, args.num_majority_points,
-                                                                       n_maj_sources=args.n_maj_sources)
+                                                                       n_maj_sources=args.n_maj_sources,
+                                                                       causal_noise=args.causal_noise)
         true_group_in_loss = False
         model = model(2, args.pretrained, args.frozen_weights)
+
+    if args.data_mode == 'iwildcam':
+        dataset, training_data_dict, test_data_dict = iwildcam_n_sources(n_sources=args.n_maj_sources)
+        true_group_in_loss = True
+        model = model(2, args.pretrained, args.frozen_weights)
+    if args.data_mode == 'camelyon':
+        group_proportions = [0.90, 0.03, 0.03, 0.04]
+        print(group_proportions)
+        dataset, training_data_dict, test_data_dict = camelyon17(max_training_data_size=3000, group_proportions=group_proportions)
+        true_group_in_loss = False
+        group_string_map = {str(key): key for key, value in training_data_dict.items()}
+        dataset.set_group_string_map(group_string_map)
+
     print("data loaded")
 
     num_groups = len(training_data_dict)
@@ -90,6 +105,7 @@ def main(args):
     mi = False
     if args.acquisition == 'mi':
         mi = True
+
     # initial random or uniform acquisition to start with
     acquisition_method = method_map[args.start_acquisition]
     indices = acquisition_method.return_indices()
@@ -113,7 +129,7 @@ def main(args):
             group_mapping_fn=dataset.group_mapping_fn, gdro=args.gdro,
             group_string_map=dataset.group_string_map,
             true_group_in_loss=true_group_in_loss, sample_batch_test=args.num_batch_test_samples)
-
+        
         # log training
         to_log.update({'train_acc': proportion_correct_train,
                        'num points':num_points,
@@ -160,6 +176,7 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--weight_decay', type=float, default=0)
     parser.add_argument('--temperature', type=float, default=0.1)
+    parser.add_argument('--causal_noise', type=float, default=0)
     parser.add_argument('--acquisition', type=str, default='random')
     parser.add_argument('--data_mode', type=str, default='wb')
     parser.add_argument('--model_name', type=str, default='BayesianNetRes50ULarger')

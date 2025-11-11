@@ -64,7 +64,7 @@ class WILDSDataset:
         split_idx = np.where(split_mask)[0]
         return len(split_idx)
         
-    def get_subset(self, split, num_points=None, sample_idx=[], transform=None, source_id=-1):
+    def get_subset(self, rng_state, split, num_points=None, sample_idx=[], transform=None, source_id=-1):
         """
         Args:
             - split (str): Split identifier, e.g., 'train', 'val', 'test'.
@@ -80,12 +80,32 @@ class WILDSDataset:
 
         split_mask = self.split_array == self.split_dict[split]
         split_idx = np.where(split_mask)[0]
-
+        np.random.set_state(rng_state)
         if num_points != None:
             # Randomly sample a fraction of the split
             split_idx = np.sort(np.random.permutation(split_idx)[:num_points])
         if len(sample_idx) > 0:
-            split_idx = np.sort(split_idx[sample_idx])
+            split_idx = np.sort(np.random.permutation(split_idx)[sample_idx])
+        return WILDSSubset(self, split_idx, transform, source_id=source_id)
+
+    def get_subset_based_on_metadata(self, rng_state, mdata_value, index_col, sample_idx=[], transform=None, source_id=-1):
+        """
+        Args:
+            - split (str): Split identifier, e.g., 'train', 'val', 'test'.
+                           Must be in self.split_dict.
+            - frac (float): What fraction of the split to randomly sample.
+                            Used for fast development on a small dataset.
+            - transform (function): Any data transformations to be applied to the input x.
+        Output:
+            - subset (WILDSSubset): A (potentially subsampled) subset of the WILDSDataset.
+        """
+        metadata_array_relevant = self.metadata_array[:,index_col]
+        split_mask = metadata_array_relevant == mdata_value
+        split_idx = np.where(split_mask)[0]        
+        np.random.set_state(rng_state)
+        if len(sample_idx) > 0:
+            split_idx_shuffled = np.random.permutation(split_idx)
+            split_idx = np.sort(split_idx_shuffled[sample_idx])
         return WILDSSubset(self, split_idx, transform, source_id=source_id)
 
     def _add_coarse_domain_metadata(self):

@@ -13,7 +13,7 @@ from early_stopping import EarlyStopping
 def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=None,
                   weight_decay=0, lr=0.001, flatten=False, gdro=False, num_groups=None,
                   model_checkpoint_path='/network/scratch/m/mizu.nishikawa-toomey/waterbird_cp/',
-                  wandb=False, group_mapping_fn=None, group_string_map={}, group_key='metadata',
+                  wandb=False, group_mapping_fn=None, group_string_map=None, group_key='metadata',
                   true_group_in_loss=True, sample_batch_test=None):
     train_acc_has_surpassed = False
     now = datetime.now()
@@ -71,7 +71,7 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
             total_correct += sum(out == target).cpu()
             total_points += len(target)
             if epoch == 0:
-                groups.extend(group_in_loss)
+                groups.extend(group)
 
         train_acc = (total_correct / total_points).item()
         if train_acc >0.80:
@@ -153,6 +153,5 @@ def test_per_group(model, test_loader, group_mapping_fn, group_string_map, sampl
         if (sampled_batches != None):
             if (batches > sampled_batches):
                 break
-    
     test_acc_final = {key + ' test acc' : correct_dict[key] / sum_dict[key] for key in correct_dict}
     return test_acc_final
