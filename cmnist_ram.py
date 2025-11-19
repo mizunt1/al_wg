@@ -41,7 +41,8 @@ class ColoredMNISTRAM(datasets.VisionDataset):
     def __init__(self, spurious_noise=0, causal_noise=0, train=True,
                  transform=None, num_samples=5000, start_idx=0,
                  add_digit=None, fiif=False, root='./data',
-                 source_id=-1, specified_class=None, red=1):
+                 source_id=-1, specified_class=None, red=1,
+                 num_digits_per_target=5):
         super(ColoredMNISTRAM, self).__init__(root, 
                                               transform=transform)
         self.start_idx = start_idx
@@ -52,7 +53,7 @@ class ColoredMNISTRAM(datasets.VisionDataset):
         self.train = train
         self.fiif = fiif
         self.specified_class = specified_class
-        self.prepare_colored_mnist()
+        self.prepare_colored_mnist(num_digits_per_target=num_digits_per_target)
         self.add_digit = add_digit
         self.source_id = source_id
         self.group_string_map = {'y1r': 0, 'y0g':1, 'y1g': 2, 'y0r':3}
@@ -88,31 +89,40 @@ class ColoredMNISTRAM(datasets.VisionDataset):
         groups = torch.zeros(len(metadata[0]))
         groups = groups + y0g + y1g*2 + y0r*3
         return groups
-        
-    def prepare_colored_mnist(self):
+            
+    def prepare_colored_mnist(self, num_digits_per_target=5):
+        assert num_digits_per_target <= 5
+        target_y0 = [i for i in range(5)][:num_digits_per_target]
+        target_y1 = [i for i in range(5,10)][:num_digits_per_target]
+        used_digits = target_y0 + target_y1
         train_mnist = datasets.mnist.MNIST(self.root, train=self.train, download=True)
         train_mnist = Subset(
             train_mnist, [i for i in range(self.start_idx, self.start_idx + self.num_samples)])
         dataset = []
         for idx, (im, label) in enumerate(train_mnist):
-            im_array = np.array(im)
-            # Assign a binary label y to the image based on the digit
-            binary_label = 0 if label < 5 else 1
-            color_red = binary_label == self.red
-            if np.random.uniform() < self.causal_noise:
-                binary_label = 1 - binary_label
-            if not self.fiif:
-                # if partially informative, the colour is downstream of 
-                # noisy label
+            if label in used_digits:
+                im_array = np.array(im)
+                # Assign a binary label y to the image based on the digit
+                binary_label = 0 if label < 5 else 1
                 color_red = binary_label == self.red
-            if np.random.uniform() < self.spurious_noise:
-                color_red = not color_red
-            colored_arr = color_grayscale_arr(im_array, red=color_red,)
-            dataset.append((Image.fromarray(colored_arr), binary_label))
+                if np.random.uniform() < self.causal_noise:
+                    binary_label = 1 - binary_label
+                if not self.fiif:
+                    # if partially informative, the colour is downstream of 
+                    # noisy label
+                    color_red = binary_label == self.red
+                if np.random.uniform() < self.spurious_noise:
+                    color_red = not color_red
+                colored_arr = color_grayscale_arr(im_array, red=color_red,)
+                dataset.append((Image.fromarray(colored_arr), binary_label))
+            else:
+                pass
+
         if self.specified_class != None:
             self.data_label_tuples = [data for data in dataset if data[1] == self.specified_class]
         else:
             self.data_label_tuples = dataset
+
 
 def return_log_probs(model, dataloader, num_classes=2, num_models_k=100):
     use_cuda = torch.cuda.is_available()

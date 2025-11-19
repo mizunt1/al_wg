@@ -136,6 +136,8 @@ def calc_ent_batched(model, dataloader, num_models=100):
     num_points = 0
     device = torch.device("cuda" if use_cuda else "cpu")
     model.train()
+    model.model.eval()
+    # make pretrained weights to eval to avoid batchnorm batch 1 problem
     model.to(device)
 
     for batch_idx, out_dict in enumerate(dataloader):
@@ -156,6 +158,7 @@ def calc_ent_per_point_batched(model, dataloader, num_models=100, mean=False, mi
     num_points = 0
     device = torch.device("cuda" if use_cuda else "cpu")
     model.train()
+    model.model.eval()
     model.to(device)
     ents = []
     batches = 0
@@ -186,6 +189,7 @@ def calc_ent_per_group_batched(model, dataloader, num_groups, num_models=100):
     use_cuda = True
     device = torch.device("cuda" if use_cuda else "cpu")
     model.train()
+    model.model.eval()
     model.to(device)
     ents = []
     groups = []

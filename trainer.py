@@ -11,7 +11,7 @@ import collections
 from early_stopping import EarlyStopping
 
 def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=None,
-                  weight_decay=0, lr=0.001, flatten=False, gdro=False, num_groups=None,
+                  weight_decay=0, lr=0.001, flatten=False, gdro=False, num_groups=None, num_sources=None,
                   model_checkpoint_path='/network/scratch/m/mizu.nishikawa-toomey/waterbird_cp/',
                   wandb=False, group_mapping_fn=None, group_string_map=None, group_key='metadata',
                   true_group_in_loss=True, sample_batch_test=None):
@@ -26,7 +26,9 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
     model.train()
     model.to(device)
     groups = []
+    sources = []
     group_count_dict = collections.defaultdict(int)
+    source_count_dict = collections.defaultdict(int)
     for epoch in range(num_epochs):
         print(epoch)
         total_correct = 0
@@ -34,14 +36,14 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
         for batch_idx, data_dict in enumerate(dataloader):
             data = data_dict['data']
             target = data_dict['target']
-            pseudo_g = data_dict['source_id']
+            source_id = data_dict['source_id']
             true_group = data_dict[group_key]
             group = group_mapping_fn(true_group)
             data, target = data.to(device), target.to(device)
             if true_group_in_loss:
                 group_in_loss = group
             else:
-                group_in_loss = pseudo_g
+                group_in_loss = source_id
                     
             optimizer.zero_grad()
             if flatten:
@@ -72,7 +74,7 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
             total_points += len(target)
             if epoch == 0:
                 groups.extend(group)
-
+                sources.extend(source_id)
         train_acc = (total_correct / total_points).item()
         if train_acc >0.80:
             train_acc_has_surpassed = True
@@ -102,13 +104,18 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
         # counting the number of points in each group
         # in the training data
         group_count_dict[i] = sum(np.array(groups) == i)
+    for i in range(num_sources):
+        # counting the number of points in each group
+        # in the training data
+        source_count_dict[i] = sum(np.array(sources) == i)
+
     if not train_acc_has_surpassed:
         # if train acc has not surpassed 80 through all epochs, need to calc test acc here
         test_acc_dict = test_per_group(model, dataloader_test,
                                        group_mapping_fn, group_string_map)
         wga = min([value for key, value in test_acc_dict.items()])
         print(test_acc_dict)
-    return train_acc, test_acc_dict, group_count_dict, wga
+    return train_acc, test_acc_dict, group_count_dict, source_count_dict, wga
 
 def test_batched(model, dataloader_test, device):
     total_correct_test = 0

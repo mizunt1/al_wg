@@ -51,13 +51,12 @@ def main(args):
         else:
             dataset, training_data_dict, test_data_dict = waterbirds_n_sources(args.num_minority_points,
                                                                       args.num_majority_points,
-                                                                      n_maj_sources=3,
+                                                                      n_maj_sources=args.n_maj_sources,
                                                                       metadata_path='metadata_larger.csv',
                                                                       root_dir="/network/scratch/m/"
                                                                       "mizu.nishikawa-toomey/waterbird_larger")
             true_group_in_loss = False
         model = model(2, args.pretrained, args.frozen_weights)
-
     if args.data_mode == 'celeba':
         if args.data_wo_sources:
             dataset, training_data_dict, test_data_dict = celeba(args.num_minority_points,
@@ -70,32 +69,33 @@ def main(args):
     if args.data_mode == 'cmnist':
         dataset, training_data_dict, test_data_dict = cmnist_n_sources(args.num_minority_points, args.num_majority_points,
                                                                        n_maj_sources=args.n_maj_sources,
-                                                                       causal_noise=args.causal_noise)
+                                                                       causal_noise=args.causal_noise,
+                                                                       spurious_noise=args.spurious_noise,
+                                                                       num_digits_per_target=args.num_digits_per_target)
         true_group_in_loss = False
         model = model(2, args.pretrained, args.frozen_weights)
-
     if args.data_mode == 'iwildcam':
         dataset, training_data_dict, test_data_dict = iwildcam_n_sources(n_sources=args.n_maj_sources)
         true_group_in_loss = True
         model = model(2, args.pretrained, args.frozen_weights)
+
     if args.data_mode == 'camelyon':
-        group_proportions = [0.90, 0.03, 0.03, 0.04]
+        group_proportions = [0.70, 0.1, 0.1, 0.1]
         print(group_proportions)
-        dataset, training_data_dict, test_data_dict = camelyon17(max_training_data_size=3000, group_proportions=group_proportions)
+        dataset, training_data_dict, test_data_dict = camelyon17(max_training_data_size=6000, group_proportions=group_proportions)
         true_group_in_loss = False
         group_string_map = {str(key): key for key, value in training_data_dict.items()}
         dataset.set_group_string_map(group_string_map)
-
+    num_groups = args.n_maj_sources + 1
     print("data loaded")
-
-    num_groups = len(training_data_dict)
+    num_sources = len(training_data_dict)
     samples_per_group = int(args.al_size / num_groups)
     group_dict_uniform_groups = {key: samples_per_group for key in range(num_groups)}
     al_data = ActiveLearningDataGroups([*training_data_dict.values()], [*test_data_dict.values()], 2, args.batch_size)
 
     method_map = {
         'random': Random(al_data, args.al_size),
-        'uniform_groups': UniformGroups(al_data, group_dict_uniform_groups),
+        'uniform_groups': UniformGroups(al_data, group_dict_uniform_groups, args.al_size),
         'entropy_per_group': EntropyPerGroup(al_data=al_data, al_size=args.al_size,
                                              temperature=args.temperature, num_groups=num_groups),
         'entropy': Entropy(al_data=al_data, al_size=args.al_size),
@@ -114,6 +114,7 @@ def main(args):
     for i in range(1, args.al_iters):
         print('al iteration: ', i)
         # setting up trainig
+        
         acquisition_method = method_map[args.acquisition]
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
@@ -122,10 +123,10 @@ def main(args):
         dataloader_train, dataloader_test = al_data.get_train_and_test_loader(
             batch_size=args.batch_size)
         num_points = len(al_data.train.indices)
-        proportion_correct_train, proportion_correct_test, groups_in_train, wga = train_batched(
+        proportion_correct_train, proportion_correct_test, groups_in_train, sources_in_train, wga = train_batched(
             model=model, dataloader=dataloader_train,
             dataloader_test=dataloader_test, lr=args.lr, num_epochs=args.num_epochs,
-            num_groups=num_groups, weight_decay=args.weight_decay,
+            num_groups=num_groups, num_sources=num_sources, weight_decay=args.weight_decay,
             group_mapping_fn=dataset.group_mapping_fn, gdro=args.gdro,
             group_string_map=dataset.group_string_map,
             true_group_in_loss=true_group_in_loss, sample_batch_test=args.num_batch_test_samples)
@@ -148,10 +149,11 @@ def main(args):
         # compute metrics and logging for debugging
         for group_name, data in test_data_dict.items():
             score_test = calc_ent_per_point_batched(
-                model, DataLoader(data, batch_size=args.batch_size), mean=True, mi=mi,
+                model, DataLoader(data, batch_size=args.batch_size, drop_last=True), mean=True, mi=mi,
                 sampled_batches=args.num_batch_test_samples)
             to_log.update({f'ent {group_name}': score_test})
-        to_log.update({f"source {key}  in train" : value for key, value in groups_in_train.items()})
+        to_log.update({f"groups {key}  in train" : value for key, value in groups_in_train.items()})
+        to_log.update({f"source {key}  in train" : value for key, value in sources_in_train.items()})
         to_log.update(proportion_correct_test)
         wandb.log(to_log) 
         pprint(to_log)
@@ -170,6 +172,7 @@ if __name__ == "__main__":
     parser.add_argument('--al_size', type=int, default=30)
     parser.add_argument('--n_maj_sources', type=int, default=3)
     parser.add_argument('--n_groups_size', type=int, default=1)
+    parser.add_argument('--num_digits_per_target', type=int, default=5)
     parser.add_argument('--num_epochs', type=int, default=1)
     parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--size', type=int, default=-1)
@@ -177,6 +180,7 @@ if __name__ == "__main__":
     parser.add_argument('--weight_decay', type=float, default=0)
     parser.add_argument('--temperature', type=float, default=0.1)
     parser.add_argument('--causal_noise', type=float, default=0)
+    parser.add_argument('--spurious_noise', type=float, default=0)
     parser.add_argument('--acquisition', type=str, default='random')
     parser.add_argument('--data_mode', type=str, default='wb')
     parser.add_argument('--model_name', type=str, default='BayesianNetRes50ULarger')

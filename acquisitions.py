@@ -5,6 +5,7 @@ import random
 from tools import calc_ent_per_group_batched, test_batched_per_group, calc_ent_per_point_batched
 import numpy as np
 from scipy.special import softmax
+from random import randint
 
 class ActiveLearningAcquisitions(ABC):
     @abstractmethod
@@ -26,16 +27,39 @@ class Random(ActiveLearningAcquisitions):
         return self.al_data.get_random_available_indices(self.al_size)
     
 class UniformGroups(ActiveLearningAcquisitions):
-    def __init__(self, al_data=None, group_proportions=None):
+    def __init__(self, al_data=None, group_proportions_in=None, al_size=None):
         self.al_data = al_data
-        self.group_proportions = group_proportions
+        self.group_proportions_in = group_proportions_in
+        self.al_size = al_size
     
     def information_for_acquisition(self, model):
         return None
 
     def return_indices(self):
+        self.group_proportions = spread_remainder(self.al_size, self.group_proportions_in)
         return self.al_data.get_indices_groups(self.group_proportions)
     
+def spread_remainder(al_size, group_proportions):
+    group_proportions = group_proportions.copy()
+    total_size = sum(group_proportions.values())
+    num_groups = len(group_proportions)
+    rand_int = randint(0,4)
+    if total_size == al_size:
+        return group_proportions
+    if total_size > al_size:
+        for i in range(total_size - al_size):
+            group_idx = (rand_int + i) % num_groups
+            group = [*group_proportions.keys()][group_idx]
+            group_proportions[group] = group_proportions[group] -1
+    if total_size < al_size:
+        for i in range(al_size - total_size):
+            group_idx = (rand_int + i) % num_groups
+            group = [*group_proportions.keys()][group_idx]
+            group_proportions[group] = group_proportions[group] + 1
+    assert sum(group_proportions.values()) == al_size
+    
+    return group_proportions
+
 class EntropyPerGroup(ActiveLearningAcquisitions):
     def __init__(self, al_data=None, al_size=None, softmax=True, temperature=0.1,
                  num_groups=None):
@@ -51,12 +75,13 @@ class EntropyPerGroup(ActiveLearningAcquisitions):
         self.group_ents = calc_ent_per_group_batched(model, dataloader, self.num_groups)
         if self.softmax:
             calculated_prob = softmax(np.array([*self.group_ents.values()])/self.temperature)
-            self.group_proportions = {key: int(value*al_size) for key, value in enumerate(calculated_prob)}
+            self.group_proportions = {key: round(value*al_size) for key, value in enumerate(calculated_prob)}
             to_log = self.group_ents
         else:
             total_ent = sum(self.group_ents.values())
-            self.group_proportions = {key: int((value/total_ent)*al_size) for key, value in self.group_ents.items()}
+            self.group_proportions = {key: round((value/total_ent)*al_size) for key, value in self.group_ents.items()}
             to_log = self.group_ents
+        self.group_proportions = spread_remainder(al_size, self.group_proportions)
         return to_log
 
     def information_for_acquisition(self, model):        
@@ -80,7 +105,7 @@ class EntropyPerGroupNLargest(ActiveLearningAcquisitions):
         max_groups0 = sorted(group_ents.items(), key=lambda item: item[1])[-self.n:]
         max_groups = [item[0] for item in max_groups0]
         group_prop = {key:0 for key, items in group_ents.items()}
-        sample_per_group = al_size // self.n
+        sample_per_group = round(al_size /self.n)
         for group_ in max_groups:
             group_prop[group_] = sample_per_group
         return group_prop, group_ents
@@ -105,7 +130,7 @@ class AccuracyPerGroup(ActiveLearningAcquisitions):
         group_accs = test_batched_per_group(model, dataloader_mini_test, num_groups)
         accs = {key: 1/ (value + 1e-2) for key, value in group_accs.items()}
         total_values = sum(accs.values()) 
-        group_amounts = {key: int((value/total_values)*self.al_size) for key, value in accs.items()}
+        group_amounts = {key: round((value/total_values)*self.al_size) for key, value in accs.items()}
         return group_amounts
 
     def information_for_acquisition(self, model, data_to_test, num_groups, k=3):
@@ -244,5 +269,11 @@ class EPIG_largest_entropy_group(ActiveLearningAcquisitions):
         greatest_ent_points = [item[1] for item in sorted_by_score[:self.al_size]]
         return greatest_ent_points
     
+if __name__ == "__main__":
+    new = spread_remainder(30, {1:15, 2:13, 3:1})
+    print(new)
+    new = spread_remainder(30, {1:15, 2:13, 3:2})
+    print(new)
+    new = spread_remainder(30, {1:15, 2:13, 3:4})
+    print(new)
 
-    
