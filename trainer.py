@@ -90,7 +90,7 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
                 wga = -early_stopping.val_loss_min
                 break
             print(test_acc_dict)
-            
+
         print('epoch ' + str(epoch))    
         print('train acc '+ str(train_acc))
         print('loss' + str(loss.detach()))
@@ -134,7 +134,7 @@ def test_batched(model, dataloader_test, device):
 def test_per_group(model, test_loader, group_mapping_fn, group_string_map, sampled_batches=None):
     # group mapping maps metadata to an integer that identifies a group
     # group_string_map is a dictionary mapping group integers to strings
-    
+
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     model.eval()

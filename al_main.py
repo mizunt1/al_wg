@@ -22,10 +22,14 @@ from acquisitions import (Random, UniformGroups,
 from data_loading import (waterbirds, waterbirds_n_sources, celeba, celeba_n_sources,
                           cmnist_n_sources, iwildcam_n_sources, camelyon17)
 from torch.utils.data import ConcatDataset, DataLoader
+import arguments
 
 # to turn off wandb, export WANDB_MODE=disabled
 
 def main(args):
+    config = getattr(arguments, args.mode)()
+    args = arguments.populate_args_from_dataclass(args, config)
+    # argparse has priority over dataclass
     wandb.init(
         project=args.project_name,
         settings=wandb.Settings(start_method='fork')
@@ -165,34 +169,33 @@ if __name__ == "__main__":
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--num_minority_points', type=int, default=400)
+    parser.add_argument('--mode', type=str, default='wb')
     parser.add_argument('--num_batch_test_samples', type=int, default=100)
-    parser.add_argument('--num_majority_points', type=int, default=4000)
-    parser.add_argument('--al_iters', type=int, default=20)
-    parser.add_argument('--al_size', type=int, default=30)
     parser.add_argument('--n_maj_sources', type=int, default=3)
     parser.add_argument('--n_groups_size', type=int, default=1)
     parser.add_argument('--num_digits_per_target', type=int, default=5)
-    parser.add_argument('--num_epochs', type=int, default=1)
-    parser.add_argument('--batch_size', type=int, default=2)
-    parser.add_argument('--size', type=int, default=-1)
-    parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--weight_decay', type=float, default=0)
     parser.add_argument('--temperature', type=float, default=0.1)
     parser.add_argument('--causal_noise', type=float, default=0)
     parser.add_argument('--spurious_noise', type=float, default=0)
     parser.add_argument('--acquisition', type=str, default='random')
-    parser.add_argument('--data_mode', type=str, default='wb')
-    parser.add_argument('--model_name', type=str, default='BayesianNetRes50ULarger')
     parser.add_argument('--start_acquisition', type=str, default='uniform_groups')
     parser.add_argument('--project_name', type=str, default='test')
     parser.add_argument('--gdro', default=False, action='store_true')
-    parser.add_argument('--train_all_data', default=False, action='store_true')
-    parser.add_argument('--balanced', default=False, action='store_true')
-    parser.add_argument('--maj_group_only', default=False, action='store_true')
     parser.add_argument('--frozen_weights', default=False, action='store_true')
     parser.add_argument('--pretrained', default=False, action='store_true')
     parser.add_argument('--data_wo_sources', default=False, action='store_true')
+
+    parser.add_argument('--model_name', type=str, default=None)
+    parser.add_argument('--lr', type=float, default=None)
+    parser.add_argument('--batch_size', type=int, default=None)
+    parser.add_argument('--num_epochs', type=int, default=None)
+    parser.add_argument('--num_majority_points', type=int, default=None)
+    parser.add_argument('--num_minority_points', type=int, default=None)
+    parser.add_argument('--al_iters', type=int, default=None)
+    parser.add_argument('--al_size', type=int, default=None)
+
+    
     args = parser.parse_args()
 
     main(args)

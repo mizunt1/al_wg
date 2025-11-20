@@ -337,7 +337,8 @@ def camelyon17(max_training_data_size, group_proportions=[], img_size=None):
 
     return dataset, data_sources, data_sources_test
         
-def cmnist_n_sources(num_minority_points, num_majority_points, n_maj_sources, causal_noise=0, spurious_noise=0, num_digits_per_target=5):
+def cmnist_n_sources(num_minority_points, num_majority_points,
+                     n_maj_sources, causal_noise=0, spurious_noise=0, num_digits_per_target=5):
     trans = transforms.Compose([transforms.ToTensor()])
     start_idx = 0
     data_sources = collections.defaultdict()
@@ -345,8 +346,8 @@ def cmnist_n_sources(num_minority_points, num_majority_points, n_maj_sources, ca
         multiplier = 5
     else:
         multiplier = 1
-    dataset = ColoredMNISTRAM(root='./data', spurious_noise=spurious_noise, 
-                              causal_noise=causal_noise,
+    dataset = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                              causal_noise=0,
                               transform=trans, start_idx=start_idx, num_samples=num_minority_points*multiplier, 
                               red=0, source_id=0, num_digits_per_target=num_digits_per_target)
     data_sources[0] = dataset

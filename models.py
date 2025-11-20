@@ -231,7 +231,7 @@ class BayesianNetDino(mc_dropout.BayesianModule):
 
 class BayesianVGGU(mc_dropout.BayesianModule):
     # https://github.com/BlackHC/BatchBALD/blob/master/src/vgg_model.py
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, hi=False, nye=False):
         super().__init__(num_classes)
         self.model = models.vgg16(weights=VGG16_Weights.IMAGENET1K_V1)
         self.classifier = nn.Sequential(
