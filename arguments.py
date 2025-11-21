@@ -5,12 +5,13 @@ class cmnist:
     data_mode: str = 'cmnist'
     model_name: str = 'BayesianNetRes50ULarger'
     lr: float = 1e-4
-    batch_size: int = 128
+    batch_size: int = 130
     num_epochs: int = 50
-    num_majority_points: int = 6000
-    num_minority_points: int = 1000
+    num_majority_points: int = 4000
+    num_minority_points: int = 400
     al_iters: int  = 100
     al_size: int = 10
+    batch_size_test: int = 64
 
 @dataclass
 class wb:
@@ -21,8 +22,9 @@ class wb:
     num_epochs: int = 30
     num_majority_points: int = 4000
     num_minority_points: int = 400
-    al_iters: int  = 20
+    al_iters: int  = 100
     al_size: int = 30
+    batch_size_test: int = 2
 
 @dataclass
 class celeba:
@@ -33,9 +35,9 @@ class celeba:
     num_epochs: int = 60
     num_majority_points: int = 4000
     num_minority_points: int = 400
-    al_iters: int  = 60
-    al_size: int = 90
-
+    al_iters: int  = 100
+    al_size: int = 30
+    batch_size_test: int = 2
 
     
 def populate_args_from_dataclass(args, cfg):

@@ -62,7 +62,7 @@ def spread_remainder(al_size, group_proportions):
 
 class EntropyPerGroup(ActiveLearningAcquisitions):
     def __init__(self, al_data=None, al_size=None, softmax=True, temperature=0.1,
-                 num_groups=None):
+                 num_groups=None, mi=False):
         self.al_data = al_data
         self.al_size = al_size
         self.group_proportions = None
@@ -70,9 +70,10 @@ class EntropyPerGroup(ActiveLearningAcquisitions):
         self.softmax = softmax
         self.temperature = temperature
         self.num_groups = num_groups
+        self.mi = mi
 
     def _ent_per_group_inverse(self, model, dataloader, al_size):
-        self.group_ents = calc_ent_per_group_batched(model, dataloader, self.num_groups)
+        self.group_ents = calc_ent_per_group_batched(model, dataloader, self.num_groups, mi=self.mi)
         if self.softmax:
             calculated_prob = softmax(np.array([*self.group_ents.values()])/self.temperature)
             self.group_proportions = {key: round(value*al_size) for key, value in enumerate(calculated_prob)}

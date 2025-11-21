@@ -12,12 +12,12 @@ import collections
 import math
 
 def waterbirds(num_minority_points, num_majority_points,
-               metadata_path='metadata_larger.csv', root_dir='data/', img_size=512):
+               metadata_path='metadata_larger.csv', root_dir='data/'):
     use_cuda = True
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
     if img_size == None:
-        img_size = 512
-        
+        img_size = 448
+    
     trans = transforms.Compose(
         [transforms.Resize((img_size, img_size)), transforms.ToTensor()])
     # training datasets

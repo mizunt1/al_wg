@@ -14,7 +14,7 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
                   weight_decay=0, lr=0.001, flatten=False, gdro=False, num_groups=None, num_sources=None,
                   model_checkpoint_path='/network/scratch/m/mizu.nishikawa-toomey/waterbird_cp/',
                   wandb=False, group_mapping_fn=None, group_string_map=None, group_key='metadata',
-                  true_group_in_loss=True, sample_batch_test=None):
+                  true_group_in_loss=False, sample_batch_test=None):
     train_acc_has_surpassed = False
     now = datetime.now()
     formatted_full = now.strftime("%A, %B %d, %Y %H:%M:%S")
