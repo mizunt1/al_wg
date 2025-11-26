@@ -30,6 +30,7 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
     group_count_dict = collections.defaultdict(int)
     source_count_dict = collections.defaultdict(int)
     for epoch in range(num_epochs):
+        
         print(epoch)
         total_correct = 0
         total_points = 0
@@ -162,3 +163,55 @@ def test_per_group(model, test_loader, group_mapping_fn, group_string_map, sampl
                 break
     test_acc_final = {key + ' test acc' : correct_dict[key] / sum_dict[key] for key in correct_dict}
     return test_acc_final
+
+
+def trainer_erm(model, dataloader, dataloader_test=None, num_epochs=10, lr=1e-3,
+                weight_decay=0, device=None, checkpoint_path=None, verbose=True):
+    """Simple ERM trainer: standard cross-entropy training loop.
+
+    Returns (model, train_acc, test_acc)
+    - model: trained model (moved to device)
+    - train_acc: final training accuracy (float)
+    - test_acc: test accuracy if dataloader_test provided else None
+    """
+    use_cuda = torch.cuda.is_available()
+    device = device or (torch.device('cuda') if use_cuda else torch.device('cpu'))
+    model.to(device)
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    loss_fn = nn.CrossEntropyLoss()
+
+    for epoch in range(num_epochs):
+        model.train()
+        total_correct = 0
+        total_points = 0
+        for batch_idx, data_dict in enumerate(dataloader):
+            data = data_dict['data']
+            target = data_dict['target']
+            data, target = data.to(device), target.to(device)
+            optimizer.zero_grad()
+            output = model(data).squeeze(1)
+            loss = loss_fn(output, target)
+            loss.backward()
+            optimizer.step()
+            total_correct += (output.argmax(dim=1) == target).sum().item()
+            total_points += len(target)
+        train_acc = (total_correct / total_points) if total_points > 0 else 0.0
+        if verbose:
+            print(f"Epoch {epoch}: train acc {train_acc:.4f}")
+
+    test_acc = None
+    if dataloader_test is not None:
+        # reuse existing test_batched utility
+        test_acc = test_batched(model, dataloader_test, device)
+        if verbose:
+            print(f"Test acc: {test_acc:.4f}")
+
+    if checkpoint_path is not None:
+        try:
+            torch.save(model.state_dict(), checkpoint_path)
+            if verbose:
+                print(f"Saved checkpoint to {checkpoint_path}")
+        except Exception as e:
+            print(f"Failed to save checkpoint to {checkpoint_path}: {e}")
+
+    return model, train_acc, test_acc
