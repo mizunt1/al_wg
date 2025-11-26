@@ -307,7 +307,8 @@ def iwildcam_n_sources(n_sources, max_training_data_size=None, img_size=None):
     return dataset, data_sources, data_sources_test
 
 def camelyon17(max_training_data_size, group_proportions=[], img_size=None):
-    assert math.isclose(sum(group_proportions),1, rel_tol=0.02)
+    if len(group_proportions) >0:
+        assert math.isclose(sum(group_proportions),1, rel_tol=0.02)
     
     if img_size == None:
         img_size = 96
@@ -320,13 +321,13 @@ def camelyon17(max_training_data_size, group_proportions=[], img_size=None):
     data_sources = collections.defaultdict()
     data_sources_test = collections.defaultdict()
     rng_state = np.random.get_state()
-    for i in range(4):
+    for i in range(5):
         testing = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=[j for j in range(200)], transform=trans, source_id=i)
         if max_training_data_size == None:
             sample_idx = [j for j in range(200, max_points[i])]
         else:
             if len(group_proportions) == 0:
-                data_size = max_training_data_size // 4
+                data_size = max_training_data_size // 5
             else:
                 data_size = int(max_training_data_size*group_proportions[i])
             sample_idx = [j for j in range(200, data_size + 200)]
@@ -346,12 +347,49 @@ def cmnist_n_sources(num_minority_points, num_majority_points,
         multiplier = 5
     else:
         multiplier = 1
-    dataset = ColoredMNISTRAM(root='./data', spurious_noise=0, 
-                              causal_noise=0,
+    dataset = ColoredMNISTRAM(root='./data', spurious_noise=spurious_noise, 
+                              causal_noise=spurious_noise,
                               transform=trans, start_idx=start_idx, num_samples=num_minority_points*multiplier, 
                               red=0, source_id=0, num_digits_per_target=num_digits_per_target)
     data_sources[0] = dataset
     start_idx += num_minority_points*multiplier
+
+    num_majority_points_per_group = num_majority_points // n_maj_sources
+    for i in range(1, n_maj_sources + 1):
+        dataset = ColoredMNISTRAM(root='./data', spurious_noise=spurious_noise, 
+                                  causal_noise=causal_noise,
+                                  transform=trans, start_idx=start_idx, num_samples=num_majority_points_per_group*multiplier, 
+                                  red=1, source_id=i,num_digits_per_target=num_digits_per_target)
+        start_idx += num_majority_points_per_group*multiplier
+        data_sources[i] = dataset
+    dataset0_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                      causal_noise=0,
+                                      transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                      source_id=0, red=0,num_digits_per_target=num_digits_per_target)
+    start_idx += 5000
+    dataset1_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                      causal_noise=0,
+                                      transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                      source_id=1, red=1,num_digits_per_target=num_digits_per_target)
+
+        
+    return dataset, data_sources, {'y0r': dataset0_unseen, 'y1r': dataset1_unseen}
+
+def cmnist_n_sources_diff_env(num_minority_points, num_majority_points,
+                     n_maj_sources, causal_noise=0, spurious_noise=0, num_digits_per_target=5):
+    trans = transforms.Compose([transforms.ToTensor()])
+    start_idx = 0
+    data_sources = collections.defaultdict()
+    if num_digits_per_target == 1:
+        multiplier = 5
+    else:
+        multiplier = 1
+    dataset = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                              causal_noise=0,
+                              transform=trans, start_idx=start_idx, num_samples=num_minority_points, 
+                              red=0, source_id=0, num_digits_per_target=5)
+    data_sources[0] = dataset
+    start_idx += num_minority_points
 
     num_majority_points_per_group = num_majority_points // n_maj_sources
     for i in range(1, n_maj_sources + 1):
