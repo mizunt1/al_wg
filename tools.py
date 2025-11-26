@@ -183,7 +183,7 @@ def calc_ent_per_point_batched(model, dataloader, num_models=100, mean=False, mi
         return ents
 
 
-def calc_ent_per_group_batched(model, dataloader, num_groups, num_models=100):
+def calc_ent_per_group_batched(model, dataloader, num_groups, num_models=100, mi=False):
     total_ent = 0
     total_xent = 0
     use_cuda = True
@@ -200,7 +200,10 @@ def calc_ent_per_group_batched(model, dataloader, num_groups, num_models=100):
         group_id = out_dict['source_id']
         data, target = data.to(device), target.to(device)
         #data = data.reshape(-1, 3*28*28)
-        ent = entropy_drop_out(model, data, num_models=num_models)
+        if mi:
+            ent = mi_drop_out(model, data, num_models=num_models)
+        else:
+            ent = entropy_drop_out(model, data, num_models=num_models)
         ents.extend(ent.cpu().tolist())
         groups.extend(group_id.cpu().tolist())
     for i in range(num_groups):
