@@ -43,18 +43,16 @@ def spread_remainder(al_size, group_proportions):
     group_proportions = group_proportions.copy()
     total_size = sum(group_proportions.values())
     num_groups = len(group_proportions)
-    rand_int = randint(0,4)
+    rand_int = randint(0, num_groups -1)
     if total_size == al_size:
         return group_proportions
     if total_size > al_size:
         for i in range(total_size - al_size):
-            group_idx = (rand_int + i) % num_groups
-            group = [*group_proportions.keys()][group_idx]
+            group = [*group_proportions.keys()][rand_int]
             group_proportions[group] = group_proportions[group] -1
     if total_size < al_size:
         for i in range(al_size - total_size):
-            group_idx = (rand_int + i) % num_groups
-            group = [*group_proportions.keys()][group_idx]
+            group = [*group_proportions.keys()][rand_int]
             group_proportions[group] = group_proportions[group] + 1
     assert sum(group_proportions.values()) == al_size
     
@@ -271,10 +269,11 @@ class EPIG_largest_entropy_group(ActiveLearningAcquisitions):
         return greatest_ent_points
     
 if __name__ == "__main__":
-    new = spread_remainder(30, {1:15, 2:13, 3:1})
+    for i in range(20):
+        new = spread_remainder(30, {1:15, 2:14, 3:0})
     print(new)
-    new = spread_remainder(30, {1:15, 2:13, 3:2})
+    new = spread_remainder(30, {1:15, 2:15, 3:1})
     print(new)
-    new = spread_remainder(30, {1:15, 2:13, 3:4})
+    new = spread_remainder(30, {1:15, 2:15, 3:1})
     print(new)
 
