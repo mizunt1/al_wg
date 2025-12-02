@@ -65,7 +65,7 @@ class ActiveLearningDataGroups():
         indexes_for_group = [i for i in range(self.group_idx[group], self.group_idx[group+1])]
         indexes_in_pool = self.pool.indices
         available_from_group = list(set(indexes_for_group).intersection(set(indexes_in_pool)))
-        assert size <= len(available_from_group)
+        assert size <= len(available_from_group) , f"for group {group} there is no longer {size} data points available. Only {len(available_from_group)} available."
         if size!= -1:
             available_indices = np.random.permutation(available_from_group)[:size]
         else:
@@ -84,7 +84,7 @@ class ActiveLearningDataGroups():
         available_indices = np.random.permutation(self.pool.indices)[:size]
         return available_indices
         
-    def get_pool_loader(self, batch_size, shuffle=False):
+    def get_pool_loader(self, shuffle=False):
         return DataLoader(self.pool, batch_size=self.batch_size,
                           num_workers=self.num_workers, pin_memory=True)
         

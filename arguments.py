@@ -1,4 +1,4 @@
-from dataclasses import dataclass, is_dataclass, fields, asdict, replace
+from dataclasses import dataclass, is_dataclass, fields, asdict, replace, field
 
 @dataclass
 class cmnist:
@@ -13,7 +13,8 @@ class cmnist:
     al_size: int = 10
     batch_size_test: int = 64
     n_maj_sources: int = 3
-        
+    num_classes: int = 2
+
 @dataclass
 class wb:
     data_mode: str = 'wb'
@@ -27,6 +28,7 @@ class wb:
     al_size: int = 30
     batch_size_test: int = 2
     n_maj_sources: int = 3
+    num_classes: int = 2
 
 @dataclass
 class celeba:
@@ -41,7 +43,23 @@ class celeba:
     al_size: int = 30
     batch_size_test: int = 2
     n_maj_sources: int = 3
+    num_classes: int = 2
 
+@dataclass
+class fmow:
+    data_mode: str = 'fmow'
+    model_name: str = 'BayesianNetDino'
+    lr: float = 1e-4
+    batch_size: int = 20
+    num_epochs: int = 30
+    al_iters: int  = 100
+    al_size: int = 6000
+    batch_size_test: int = 20
+    n_maj_sources: int = 4
+    num_classes: int = 62
+    group_proportions: list = field(default_factory=lambda: [0.2 for i in range(5)])
+    max_training_data_size: int = None
+    
 @dataclass
 class camelyon:
     data_mode: str = 'camelyon'
@@ -52,9 +70,11 @@ class camelyon:
     num_majority_points: int = 4000
     num_minority_points: int = 400
     al_iters: int  = 100
-    al_size: int = 10
+    al_size: int = 5
     batch_size_test: int = 10
     n_maj_sources: int = 4
+    num_classes: int = 2
+    max_training_data_size: int = 6000
 
 def populate_args_from_dataclass(args, cfg):
     """

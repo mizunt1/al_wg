@@ -20,7 +20,7 @@ from acquisitions import (Random, UniformGroups,
                           EntropyPerGroup, AccuracyPerGroup, Entropy,
                           EntropyUniformGroups, MI, EntropyPerGroupNLargest, EntropyPerGroupOrdered)
 from data_loading import (waterbirds, waterbirds_n_sources, celeba, celeba_n_sources,
-                          cmnist_n_sources, iwildcam_n_sources, camelyon17, cmnist_n_sources_diff_env)
+                          cmnist_n_sources, iwildcam_n_sources, camelyon17, cmnist_n_sources_diff_env, fmow)
 from torch.utils.data import ConcatDataset, DataLoader
 import arguments
 
@@ -60,7 +60,7 @@ def main(args):
                                                                       metadata_path='metadata_larger.csv',
                                                                       root_dir="/network/scratch/m/"
                                                                       "mizu.nishikawa-toomey/waterbird_larger")
-        model = model(2, args.pretrained, args.frozen_weights)
+        model = model(args.num_classes, args.pretrained, args.frozen_weights)
     if args.data_mode == 'celeba':
         if args.data_wo_sources:
             dataset, training_data_dict, test_data_dict = celeba(args.num_minority_points,
@@ -86,11 +86,19 @@ def main(args):
         true_group_in_loss = True
 
     if args.data_mode == 'camelyon':
-        group_proportions = [0.2, 0.2, 0.05, 0.35, 0.2]
+        group_proportions = [0.1, 0.01, 0.1, 0.69, 0.1]
         print(group_proportions)
         dataset, training_data_dict, test_data_dict = camelyon17(max_training_data_size=6000, group_proportions=group_proportions)
         group_string_map = {str(key): key for key, value in training_data_dict.items()}
         dataset.set_group_string_map(group_string_map)
+
+    if args.data_mode == 'fmow':
+        group_proportions = args.group_proportions
+        print(group_proportions)
+        dataset, training_data_dict, test_data_dict = fmow(max_training_data_size=60000, group_proportions=group_proportions)
+        #group_string_map = {str(key): key for key, value in training_data_dict.items()}
+        #dataset.set_group_string_map(group_string_map)
+
     num_groups = args.n_maj_sources + 1
     print("data loaded")
     num_sources = len(training_data_dict)
@@ -105,6 +113,31 @@ def main(args):
         'uniform_groups': UniformGroups(al_data, group_dict_uniform_groups, args.al_size),
         'entropy_per_group': EntropyPerGroup(al_data=al_data, al_size=args.al_size,
                                              temperature=args.temperature, num_groups=num_groups),
+        'entropy_per_group_soft_rank': EntropyPerGroup(al_data=al_data, al_size=args.al_size,
+                                             temperature=args.temperature, num_groups=num_groups,
+                                             within_group_acquisition='softrank'),
+        'entropy_per_group_soft_max': EntropyPerGroup(al_data=al_data, al_size=args.al_size,
+                                             temperature=args.temperature, num_groups=num_groups,
+                                             within_group_acquisition='softmax'),
+        'entropy_per_group_power': EntropyPerGroup(al_data=al_data, al_size=args.al_size,
+                                             temperature=args.temperature, num_groups=num_groups,
+                                             within_group_acquisition='power'),
+        'entropy_per_group_top_k': EntropyPerGroup(al_data=al_data, al_size=args.al_size,
+                                                   temperature=args.temperature, num_groups=num_groups,
+                                                   within_group_acquisition='topk'),
+        'n_largest_soft_rank': EntropyPerGroupNLargest(al_data=al_data, al_size=args.al_size,
+                                                       num_groups=num_groups,
+                                             within_group_acquisition='softrank'),
+        'n_largest_soft_max': EntropyPerGroupNLargest(al_data=al_data, al_size=args.al_size,
+                                                      num_groups=num_groups,
+                                             within_group_acquisition='softmax'),
+        'n_largest_power': EntropyPerGroupNLargest(al_data=al_data, al_size=args.al_size,
+                                                   num_groups=num_groups,
+                                             within_group_acquisition='power'),
+        'n_largest_top_k': EntropyPerGroupNLargest(al_data=al_data, al_size=args.al_size,
+                                                   num_groups=num_groups,
+                                                   within_group_acquisition='topk'),
+
         'mi_per_group': EntropyPerGroup(al_data=al_data, al_size=args.al_size,
                                              temperature=args.temperature, num_groups=num_groups, mi=True),
         'entropy': Entropy(al_data=al_data, al_size=args.al_size),
@@ -129,7 +162,7 @@ def main(args):
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
         model = getattr(models, args.model_name)
-        model = model(2, args.pretrained, args.frozen_weights)
+        model = model(args.num_classes, args.pretrained, args.frozen_weights)
         dataloader_train, dataloader_test = al_data.get_train_and_test_loader(
             batch_size=args.batch_size)
         num_points = len(al_data.train.indices)
@@ -190,8 +223,9 @@ if __name__ == "__main__":
     parser.add_argument('--frozen_weights', default=False, action='store_true')
     parser.add_argument('--pretrained', default=False, action='store_true')
     parser.add_argument('--data_wo_sources', default=False, action='store_true')
-
+    
     parser.add_argument('--model_name', type=str, default=None)
+    parser.add_argument('--group_proportions', type=float, nargs='+', default=None)
     parser.add_argument('--data_mode', type=str, default=None)
     parser.add_argument('--lr', type=float, default=None)
     parser.add_argument('--batch_size', type=int, default=None)

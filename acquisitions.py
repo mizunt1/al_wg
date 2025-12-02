@@ -6,6 +6,8 @@ from tools import calc_ent_per_group_batched, test_batched_per_group, calc_ent_p
 import numpy as np
 from scipy.special import softmax
 from random import randint
+from stochastic_acquisition import get_stochastic_samples
+import torch
 
 class ActiveLearningAcquisitions(ABC):
     @abstractmethod
@@ -59,19 +61,26 @@ def spread_remainder(al_size, group_proportions):
     return group_proportions
 
 class EntropyPerGroup(ActiveLearningAcquisitions):
-    def __init__(self, al_data=None, al_size=None, softmax=True, temperature=0.1,
+    def __init__(self, al_data=None, al_size=None, within_group_acquisition='random',
+                 softmax=True, temperature=0.1,
                  num_groups=None, mi=False):
         self.al_data = al_data
+        self.pool_indices = self.al_data.pool.indices
         self.al_size = al_size
+        self.within_group_acquisition = within_group_acquisition
         self.group_proportions = None
         self.group_ents = None
         self.softmax = softmax
         self.temperature = temperature
         self.num_groups = num_groups
         self.mi = mi
+        self.ents = None
+        self.group_ids = None
+        
 
-    def _ent_per_group_inverse(self, model, dataloader, al_size):
-        self.group_ents = calc_ent_per_group_batched(model, dataloader, self.num_groups, mi=self.mi)
+    def _calc_group_proportions(self, model, dataloader, al_size):
+        self.group_ents, self.ents, self.group_ids = calc_ent_per_group_batched(
+            model, dataloader, self.num_groups, mi=self.mi, return_averaged_only=False)
         if self.softmax:
             calculated_prob = softmax(np.array([*self.group_ents.values()])/self.temperature)
             self.group_proportions = {key: round(value*al_size) for key, value in enumerate(calculated_prob)}
@@ -82,26 +91,44 @@ class EntropyPerGroup(ActiveLearningAcquisitions):
             to_log = self.group_ents
         self.group_proportions = spread_remainder(al_size, self.group_proportions)
         return to_log
-
+    
     def information_for_acquisition(self, model):        
-        to_log = self._ent_per_group_inverse(
-            model, self.al_data.get_pool_loader(64), self.al_size)
+        to_log = self._calc_group_proportions(
+            model, self.al_data.get_pool_loader(), self.al_size)
         return to_log
 
     def return_indices(self):
-        return self.al_data.get_indices_groups(self.group_proportions)
+        if self.within_group_acquisition == 'random':
+            return self.al_data.get_indices_groups(self.group_proportions)
+        else:
+            final_indices = []
+            for group_id, num_points_per_g in self.group_proportions.items():
+                ents_one_group = [i for (i,j) in zip(self.ents, self.group_ids) if j == group_id]
+                indices_one_group = [i for (i, j) in zip(self.al_data.pool.indices, self.group_ids) if j == group_id]
+                assert len(ents_one_group) == len(indices_one_group)
+                candidate_batch = get_stochastic_samples(
+                    torch.Tensor(ents_one_group), coldness=1, batch_size=num_points_per_g,
+                    mode=self.within_group_acquisition)
+                location_of_top_points = [indices_one_group[i] for i in candidate_batch.indices]
+                final_indices.extend(location_of_top_points)
+
+            return final_indices
 
 class EntropyPerGroupNLargest(ActiveLearningAcquisitions):
-    def __init__(self, al_data=None, al_size=None, n=1, num_groups=None):
+    def __init__(self, al_data=None, al_size=None, n=1, num_groups=None, within_group_acquisition='random'):
         self.al_data = al_data
         self.al_size = al_size
         self.group_proportions = None
         self.n = n
         self.num_groups = num_groups
-
+        self.mi = False
+        self.within_group_acquisition = within_group_acquisition
+        
     def _largest_ent_group(self, model, dataloader, al_size):
-        group_ents = calc_ent_per_group_batched(model, dataloader, self.num_groups)
-        max_groups0 = sorted(group_ents.items(), key=lambda item: item[1])[-self.n:]
+        self.group_ents, self.ents, self.group_ids = calc_ent_per_group_batched(
+            model, dataloader, self.num_groups, mi=self.mi, return_averaged_only=False)
+
+        max_groups0 = sorted(self.group_ents.items(), key=lambda item: item[1])[-self.n:]
         max_groups = [item[0] for item in max_groups0]
         group_prop = {key:0 for key, items in group_ents.items()}
         sample_per_group = round(al_size /self.n)
@@ -109,14 +136,29 @@ class EntropyPerGroupNLargest(ActiveLearningAcquisitions):
             group_prop[group_] = sample_per_group
         return group_prop, group_ents
 
+    def return_indices(self):
+        if self.within_group_acquisition == 'random':
+            return self.al_data.get_indices_groups(self.group_proportions)
+        else:
+            final_indices = []
+            for group_id, num_points_per_g in self.group_proportions.items():
+                ents_one_group = [i for (i,j) in zip(self.ents, self.group_ids) if j == group_id]
+                indices_one_group = [i for (i, j) in zip(self.al_data.pool.indices, self.group_ids) if j == group_id]
+                assert len(ents_one_group) == len(indices_one_group)
+                candidate_batch = get_stochastic_samples(
+                    torch.Tensor(ents_one_group), coldness=1, batch_size=num_points_per_g,
+                    mode=self.within_group_acquisition)
+                location_of_top_points = [indices_one_group[i] for i in candidate_batch.indices]
+                final_indices.extend(location_of_top_points)
+
+            return final_indices
+
     def information_for_acquisition(self, model):
         group_proportions, group_ents = self._largest_ent_group(
-            model, self.al_data.get_pool_loader(64), self.al_size)
+            model, self.al_data.get_pool_loader(), self.al_size)
         self.group_proportions = group_proportions
         return group_ents
     
-    def return_indices(self):
-        return self.al_data.get_indices_groups(self.group_proportions)
 
 class AccuracyPerGroup(ActiveLearningAcquisitions):
     def __init__(self, al_data=None, al_size=None):

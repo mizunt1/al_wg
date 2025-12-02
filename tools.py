@@ -183,7 +183,7 @@ def calc_ent_per_point_batched(model, dataloader, num_models=100, mean=False, mi
         return ents
 
 
-def calc_ent_per_group_batched(model, dataloader, num_groups, num_models=100, mi=False):
+def calc_ent_per_group_batched(model, dataloader, num_groups, num_models=100, mi=False, return_averaged_only=True):
     total_ent = 0
     total_xent = 0
     use_cuda = True
@@ -209,8 +209,11 @@ def calc_ent_per_group_batched(model, dataloader, num_groups, num_models=100, mi
     for i in range(num_groups):
         group_ent = np.array(ents) @ (np.array(groups)==i)
         group_ents[i] = group_ent / (sum(np.array(groups)==i) + 1e-3)
-    return dict(sorted(group_ents.items()))
-
+    if return_averaged_only:
+        return dict(sorted(group_ents.items()))
+    else:
+        return dict(sorted(group_ents.items())), ents, groups
+    
 def test_batched_per_group(model, dataloader_test, num_groups):
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")

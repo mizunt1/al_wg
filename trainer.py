@@ -167,7 +167,7 @@ def test_per_group(model, test_loader, group_mapping_fn, group_string_map, sampl
 
 def trainer_erm(model, dataloader, dataloader_test=None, num_epochs=10, lr=1e-3,
                 weight_decay=0, device=None, checkpoint_path=None, verbose=True):
-    """Simple ERM trainer: standard cross-entropy training loop.
+    """Simple ERM trainer: standard cross-entropy training loop with early stopping.
 
     Returns (model, train_acc, test_acc)
     - model: trained model (moved to device)
@@ -179,6 +179,13 @@ def trainer_erm(model, dataloader, dataloader_test=None, num_epochs=10, lr=1e-3,
     model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     loss_fn = nn.CrossEntropyLoss()
+    
+    train_acc_has_surpassed = False
+    early_stopping = None
+    test_acc = None
+    
+    if dataloader_test is not None and checkpoint_path is not None:
+        early_stopping = EarlyStopping(patience=10, verbose=True, path=checkpoint_path)
 
     for epoch in range(num_epochs):
         model.train()
@@ -196,22 +203,29 @@ def trainer_erm(model, dataloader, dataloader_test=None, num_epochs=10, lr=1e-3,
             total_correct += (output.argmax(dim=1) == target).sum().item()
             total_points += len(target)
         train_acc = (total_correct / total_points) if total_points > 0 else 0.0
-        if verbose:
-            print(f"Epoch {epoch}: train acc {train_acc:.4f}")
+        
+        if train_acc > 0.8:
+            train_acc_has_surpassed = True
+            if early_stopping is not None:
+                test_acc = test_batched(model, dataloader_test, device)
+                early_stopping(-test_acc, model, test_acc_dict={})
+                if early_stopping.early_stop:
+                    if verbose:
+                        print(f"Early stopping at epoch {epoch}")
+                    test_acc = -early_stopping.val_loss_min
+                    break
+                if verbose:
+                    print(f"Epoch {epoch}: train acc {train_acc:.4f}, test acc {test_acc:.4f}")
+            else:
+                if verbose:
+                    print(f"Epoch {epoch}: train acc {train_acc:.4f}")
+        else:
+            if verbose:
+                print(f"Epoch {epoch}: train acc {train_acc:.4f}")
 
-    test_acc = None
-    if dataloader_test is not None:
-        # reuse existing test_batched utility
+    if not train_acc_has_surpassed and dataloader_test is not None:
         test_acc = test_batched(model, dataloader_test, device)
         if verbose:
             print(f"Test acc: {test_acc:.4f}")
-
-    if checkpoint_path is not None:
-        try:
-            torch.save(model.state_dict(), checkpoint_path)
-            if verbose:
-                print(f"Saved checkpoint to {checkpoint_path}")
-        except Exception as e:
-            print(f"Failed to save checkpoint to {checkpoint_path}: {e}")
 
     return model, train_acc, test_acc
