@@ -65,7 +65,9 @@ class Camelyon17Dataset(WILDSDataset):
         self._data_dir = self.initialize_data_dir(root_dir, download)
         self._original_resolution = (96,96) 
         self.group_string_map = {}
+        self.group_string_map_test = {}
         self.group_int_map = {}
+        self.group_int_map_test = {}
         # Read in metadata
         self._metadata_df = pd.read_csv(
             os.path.join(self._data_dir, 'metadata.csv'),
@@ -134,6 +136,11 @@ class Camelyon17Dataset(WILDSDataset):
         self.group_string_map = group_string_map
         self.group_int_map = {value: key for key, value in self.group_string_map.items()}
 
+    def set_group_string_map_test(self, group_string_map_test):
+        self.group_string_map_test = group_string_map_test
+        self.group_int_map_test = {value: key for key, value in self.group_string_map_test.items()}
+
+        
     def get_input(self, idx):
         """
         Returns x for a given idx.
@@ -157,7 +164,7 @@ class Camelyon17Dataset(WILDSDataset):
         """
         index_col = 0
         num_points = collections.defaultdict()
-        for i in range(4):
+        for i in range(5):
             metadata_array_relevant = self.metadata_array[:,0]
             split_mask = metadata_array_relevant == i
             split_idx = np.where(split_mask)[0]        
