@@ -13,13 +13,16 @@ from early_stopping import EarlyStopping
 def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=None,
                   weight_decay=0, lr=0.001, flatten=False, gdro=False, num_groups=None, num_sources=None,
                   model_checkpoint_path='/network/scratch/m/mizu.nishikawa-toomey/waterbird_cp/',
-                  wandb=False, group_mapping_fn=None, group_string_map=None, group_key='metadata',
+                  wandb=False, group_mapping_fn=None, group_string_map=None, group_string_map_test=None,
+                  group_key='metadata',
                   true_group_in_loss=False, sample_batch_test=None):
+    if group_string_map_test == None:
+        group_string_map_test = group_string_map
     train_acc_has_surpassed = False
     now = datetime.now()
     formatted_full = now.strftime("%A, %B %d, %Y %H:%M:%S")
     path = model_checkpoint_path + formatted_full + 'model.pt'
-    early_stopping = EarlyStopping(patience=10, verbose=True, path=path)
+    early_stopping = EarlyStopping(patience=20, verbose=True, path=path)
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -81,7 +84,7 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
             train_acc_has_surpassed = True
             # only calculate test acc on epochs when acc is high to save on computing it
             test_acc_dict = test_per_group(model, dataloader_test,
-                                           group_mapping_fn, group_string_map,
+                                           group_mapping_fn, group_string_map_test,
                                            sampled_batches=sample_batch_test)
             wga = min([value for key, value in test_acc_dict.items()])
             early_stopping(-wga, model, test_acc_dict)
@@ -113,7 +116,7 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
     if not train_acc_has_surpassed:
         # if train acc has not surpassed 80 through all epochs, need to calc test acc here
         test_acc_dict = test_per_group(model, dataloader_test,
-                                       group_mapping_fn, group_string_map)
+                                       group_mapping_fn, group_string_map_test)
         wga = min([value for key, value in test_acc_dict.items()])
         print(test_acc_dict)
     return train_acc, test_acc_dict, group_count_dict, source_count_dict, wga
@@ -135,7 +138,6 @@ def test_batched(model, dataloader_test, device):
 def test_per_group(model, test_loader, group_mapping_fn, group_string_map, sampled_batches=None):
     # group mapping maps metadata to an integer that identifies a group
     # group_string_map is a dictionary mapping group integers to strings
-
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     model.eval()
@@ -153,6 +155,7 @@ def test_per_group(model, test_loader, group_mapping_fn, group_string_map, sampl
         data, y = data.to(device), y.to(device)
         output = model(data).squeeze(1)
         correct_batch = torch.argmax(output, axis=1) == y
+
         for group_name, group_id in group_string_map.items():
             correct = sum(correct_batch & (group_ids.to(device) == group_id)).item()
             total = sum(group_ids == group_id).item()
