@@ -29,7 +29,7 @@ class EarlyStopping:
         self.trace_func = trace_func
         self.test_acc_dict = None
 
-    def __call__(self, val_loss, model, test_acc_dict):
+    def __call__(self, val_loss, model, test_acc_dict={}):
         # Check if validation loss is nan
         if np.isnan(val_loss):
             self.trace_func("Validation loss is NaN. Ignoring this epoch.")

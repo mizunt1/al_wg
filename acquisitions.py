@@ -39,6 +39,7 @@ class UniformGroups(ActiveLearningAcquisitions):
 
     def return_indices(self):
         self.group_proportions = spread_remainder(self.al_size, self.group_proportions_in)
+        #self.group_proportions = {0:0, 1:self.al_size, 2:0, 3:0, 4:0}
         return self.al_data.get_indices_groups(self.group_proportions)
     
 def spread_remainder(al_size, group_proportions):
@@ -130,13 +131,14 @@ class EntropyPerGroupNLargest(ActiveLearningAcquisitions):
 
         max_groups0 = sorted(self.group_ents.items(), key=lambda item: item[1])[-self.n:]
         max_groups = [item[0] for item in max_groups0]
-        group_prop = {key:0 for key, items in group_ents.items()}
+        group_prop = {key:0 for key, items in self.group_ents.items()}
         sample_per_group = round(al_size /self.n)
         for group_ in max_groups:
             group_prop[group_] = sample_per_group
-        return group_prop, group_ents
+        return group_prop, self.group_ents
 
     def return_indices(self):
+        #self.group_proportions = {0:0, 1:self.al_size, 2:0, 3:0, 4:0}
         if self.within_group_acquisition == 'random':
             return self.al_data.get_indices_groups(self.group_proportions)
         else:
