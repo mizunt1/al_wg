@@ -11,10 +11,11 @@ from torchvision.models import VGG16_Weights
 from vgg import vgg16_bn
 import clip
 
-def resnet50(classes=2, drop_out=0.0):
+def resnet50(classes=2, fine_tune_only=True):
     model = torchvision.models.resnet50(pretrained=True)
-    for param in model.parameters():
-        param.requires_grad = False
+    if fine_tune_only:
+        for param in model.parameters():
+            param.requires_grad = False
     d = model.fc.in_features
     model.fc = nn.Linear(d, classes)
     return model
@@ -207,8 +208,7 @@ class BayesianNetDino(mc_dropout.BayesianModule):
         vits8 = torch.hub.load('facebookresearch/dino:main', 'dino_vits8')
         self.model = vits8
         if frozen_weights:
-            for param in self.model.parameters():
-                param.requires_grad = False
+            self.model.eval()
         d = 384
         self.classifier = nn.Sequential(
                 nn.Linear(d, 4096),
