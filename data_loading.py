@@ -10,6 +10,7 @@ from celeba import CelebA
 import numpy as np
 import collections
 import math
+from fmow_dataset import FMoWDataset
 
 def waterbirds(num_minority_points, num_majority_points,
                metadata_path='metadata_larger.csv', root_dir='data/'):
@@ -174,6 +175,11 @@ def celeba_n_sources(num_minority_points, num_majority_points, n_maj_sources = 3
     all_mnb = CelebA(root_dir, download=True, transform=trans, split='train_mnb')
     all_fnb = CelebA(root_dir, download=True, transform=trans, split='train_fnb')
 
+    print(f"num male blond: {len(all_mb)}")
+    print(f'num female blond: {len(all_fb)}')
+    print(f'num male not blond : {len(all_mnb)}')
+    print(f'num female not blond: {len(all_fnb)}')
+
     max_mb_points = len(all_mb)
     max_fb_points = len(all_fb)
     max_mnb_points = len(all_mnb)
@@ -314,32 +320,102 @@ def camelyon17(max_training_data_size, group_proportions=[], img_size=None):
         img_size = 96
     trans = transforms.Compose(
         [transforms.Resize((img_size, img_size)), transforms.ToTensor()])
-    
-    dataset = Camelyon17Dataset(root_dir='/network/scratch/m/mizu.nishikawa-toomey')
+    dataset = Camelyon17Dataset(root_dir='/tmp/')
     index_col = 0
     max_points = dataset.list_number_of_points_per_source()
+    print(max_points)
     data_sources = collections.defaultdict()
     data_sources_test = collections.defaultdict()
     rng_state = np.random.get_state()
     for i in range(5):
-        testing = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=[j for j in range(200)], transform=trans, source_id=i)
+        testing = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=[j for j in range(400)], transform=trans, source_id=i)
         if max_training_data_size == None:
-            sample_idx = [j for j in range(200, max_points[i])]
+            sample_idx_train = [j for j in range(400, max_points[i])]
         else:
             if len(group_proportions) == 0:
                 data_size = max_training_data_size // 5
             else:
                 data_size = int(max_training_data_size*group_proportions[i])
-            sample_idx = [j for j in range(200, data_size + 200)]
+            sample_idx = [j for j in range(400, 400 + data_size)]
         training = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=sample_idx,
                                                         transform=trans, source_id=i)
         data_sources[i] = training
         data_sources_test[i] = testing
+    return dataset, data_sources, data_sources_test
+
+def camelyon17_ood(max_training_data_size, group_proportions=[], test_source=0, img_size=None):
+    if len(group_proportions) >0:
+        assert math.isclose(sum(group_proportions),1, rel_tol=0.02)
+    
+    if img_size == None:
+        img_size = 96
+    trans = transforms.Compose(
+        [transforms.Resize((img_size, img_size)), transforms.ToTensor()])
+    group_string_map_test = {test_source: test_source}
+    dataset = Camelyon17Dataset(root_dir='/tmp/')
+    index_col = 0
+    max_points = dataset.list_number_of_points_per_source()
+    print(max_points)
+    data_sources = collections.defaultdict()
+    data_sources_test = collections.defaultdict()
+    rng_state = np.random.get_state()
+    train_sources = [i for i in range(5)]
+    train_sources.pop(test_source)
+    for i in train_sources:
+        if max_training_data_size == None:
+            sample_idx_train = [j for j in range(400, max_points[i])]
+        else:
+            if len(group_proportions) == 0:
+                data_size = max_training_data_size // 5
+            else:
+                data_size = int(max_training_data_size*group_proportions[i])
+            sample_idx = [j for j in range(400, 400 + data_size)]
+        training = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=sample_idx,
+                                                        transform=trans, source_id=i)
+        data_sources[i] = training
+    data_sources_test[test_source] = dataset.get_subset_based_on_metadata(
+        rng_state, test_source, index_col, sample_idx=[j for j in range(400)],
+        transform=trans, source_id=test_source)
 
     return dataset, data_sources, data_sources_test
-        
+
+def fmow(max_training_data_size, group_proportions=[], img_size=None, num_sources=5, test_size=400):
+    if len(group_proportions) >0:
+        assert math.isclose(sum(group_proportions),1, rel_tol=0.02), f"group proportions dont sum to one, sums to {sum(group_proportions)}"
+    
+    if img_size == None:
+        img_size = 224
+    trans = transforms.Compose(
+        [transforms.Resize((img_size, img_size)), transforms.ToTensor()])
+    
+    dataset = FMoWDataset(root_dir='/network/scratch/m/mizu.nishikawa-toomey')
+    index_col = 0
+    max_points = dataset.list_number_of_points_per_source()
+    print(f"number of points in each source in whole dataset {max_points}")
+    data_sources = collections.defaultdict()
+    data_sources_test = collections.defaultdict()
+    rng_state = np.random.get_state()
+    for i in range(num_sources):
+        testing = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=[j for j in range(test_size)], transform=trans, source_id=i)
+        if max_training_data_size == None:
+            sample_idx_train = [j for j in range(test_size, max_points[i])]
+            data_size = len(sample_idx_train)
+        else:
+            if len(group_proportions) == 0:
+                data_size = max_training_data_size // 5
+            else:
+                data_size = int(max_training_data_size*group_proportions[i])
+            sample_idx_train = [j for j in range(test_size, data_size + test_size)]
+        assert max_points[i] >= data_size + test_size, f"for source {i}, requested points {data_size + test_size} is larger than availabe data size {max_points[i]}"
+
+        training = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=sample_idx_train,
+                                                        transform=trans, source_id=i)
+        data_sources[i] = training
+        data_sources_test[i] = testing
+    return dataset, data_sources, data_sources_test
+
 def cmnist_n_sources(num_minority_points, num_majority_points,
-                     n_maj_sources, causal_noise=0, spurious_noise=0, num_digits_per_target=5):
+                     n_maj_sources, causal_noise=0, spurious_noise=0, num_digits_per_target=5, binary_classification=True):
     trans = transforms.Compose([transforms.ToTensor()])
     start_idx = 0
     data_sources = collections.defaultdict()
@@ -350,7 +426,8 @@ def cmnist_n_sources(num_minority_points, num_majority_points,
     dataset = ColoredMNISTRAM(root='./data', spurious_noise=spurious_noise, 
                               causal_noise=spurious_noise,
                               transform=trans, start_idx=start_idx, num_samples=num_minority_points*multiplier, 
-                              red=0, source_id=0, num_digits_per_target=num_digits_per_target)
+                              red=0, source_id=0, num_digits_per_target=num_digits_per_target,
+                              binary_classification=binary_classification)
     data_sources[0] = dataset
     start_idx += num_minority_points*multiplier
 
@@ -359,21 +436,90 @@ def cmnist_n_sources(num_minority_points, num_majority_points,
         dataset = ColoredMNISTRAM(root='./data', spurious_noise=spurious_noise, 
                                   causal_noise=causal_noise,
                                   transform=trans, start_idx=start_idx, num_samples=num_majority_points_per_group*multiplier, 
-                                  red=1, source_id=i,num_digits_per_target=num_digits_per_target)
+                                  red=1, source_id=i,num_digits_per_target=num_digits_per_target,
+                                  binary_classification=binary_classification)
         start_idx += num_majority_points_per_group*multiplier
         data_sources[i] = dataset
-    dataset0_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
-                                      causal_noise=0,
-                                      transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
-                                      source_id=0, red=0,num_digits_per_target=num_digits_per_target)
-    start_idx += 5000
-    dataset1_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
-                                      causal_noise=0,
-                                      transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
-                                      source_id=1, red=1,num_digits_per_target=num_digits_per_target)
+    datasety0r_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                        causal_noise=0,
+                                        transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                        source_id=0, red=0, specified_class = 0,
+                                        num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+    datasety1g_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                        causal_noise=0,
+                                        transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                        source_id=0, red=0, specified_class =1,
+                                        num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
 
-        
-    return dataset, data_sources, {'y0r': dataset0_unseen, 'y1r': dataset1_unseen}
+    start_idx += 5000
+    datasety0g_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                      causal_noise=0, specified_class=0,
+                                      transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                      source_id=1, red=1,num_digits_per_target=num_digits_per_target,
+                                      binary_classification=binary_classification)
+
+    datasety1r_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                        causal_noise=0, specified_class=1,
+                                        transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                        source_id=1, red=1,num_digits_per_target=num_digits_per_target,
+                                        binary_classification=binary_classification)
+
+    return dataset, data_sources, {'y0r': datasety0r_unseen, 'y1r': datasety1r_unseen,
+                                   'y0g': datasety0g_unseen, 'y1g': datasety1g_unseen}
+
+def cmnist_n_sources_ood(num_minority_points, num_majority_points,
+                     n_maj_sources, causal_noise=0, spurious_noise=0, num_digits_per_target=5, binary_classification=True):
+    trans = transforms.Compose([transforms.ToTensor()])
+    start_idx = 0
+    data_sources = collections.defaultdict()
+    if num_digits_per_target == 1:
+        multiplier = 5
+    else:
+        multiplier = 1
+    dataset = ColoredMNISTRAM(root='./data', spurious_noise=spurious_noise, 
+                              causal_noise=spurious_noise,
+                              transform=trans, start_idx=start_idx, num_samples=num_minority_points*multiplier, 
+                              red=0, source_id=0, num_digits_per_target=num_digits_per_target,
+                              binary_classification=binary_classification)
+    
+    test_set = {'y0r_y1g': dataset}
+    start_idx += num_minority_points*multiplier
+
+    num_majority_points_per_group = num_majority_points // n_maj_sources
+    for i in range(0, n_maj_sources):
+        dataset = ColoredMNISTRAM(root='./data', spurious_noise=spurious_noise, 
+                                  causal_noise=causal_noise,
+                                  transform=trans, start_idx=start_idx, num_samples=num_majority_points_per_group*multiplier, 
+                                  red=1, source_id=i,num_digits_per_target=num_digits_per_target,
+                                  binary_classification=binary_classification)
+        start_idx += num_majority_points_per_group*multiplier
+        data_sources[i] = dataset
+    datasety0r_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                        causal_noise=0,
+                                        transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                        source_id=0, red=0, specified_class = 0,
+                                        num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+    datasety1g_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                        causal_noise=0,
+                                        transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                        source_id=0, red=0, specified_class =1,
+                                        num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+    start_idx += 5000
+    datasety0g_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                      causal_noise=0, specified_class=0,
+                                      transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                      source_id=1, red=1,num_digits_per_target=num_digits_per_target,
+                                      binary_classification=binary_classification)
+
+    datasety1r_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                        causal_noise=0, specified_class=1,
+                                        transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                        source_id=1, red=1,num_digits_per_target=num_digits_per_target,
+                                        binary_classification=binary_classification)
+
+    return dataset, data_sources, {'y0r': datasety0r_unseen, 'y1r': datasety1r_unseen,
+                                   'y0g': datasety0g_unseen, 'y1g': datasety1g_unseen}
+
 
 def cmnist_n_sources_diff_env(num_minority_points, num_majority_points,
                      n_maj_sources, causal_noise=0, spurious_noise=0, num_digits_per_target=5):
@@ -414,25 +560,28 @@ def cmnist_n_sources_diff_env(num_minority_points, num_majority_points,
 
 
 if __name__ == "__main__":
-    from camelyon17_dataset import Camelyon17Dataset
-    dataset = Camelyon17Dataset(root_dir='/network/scratch/m/mizu.nishikawa-toomey')
-    import h5py    
-    file_name = '/network/scratch/m/mizu.nishikawa-toomey/camelyonpatch_level_2_split_train_y.h5'
-    f = h5py.File(file_name, 'r')
-    for key in f.keys():
-        print(key) #Names of the root level object names in HDF5 file - can be groups or datasets.
-        print(type(f[key])) # get the object type: usually group or dataset
-
-    import pdb
-    pdb.set_trace()
-
-    file_name = '/network/scratch/m/mizu.nishikawa-toomey/camelyonpatch_level_2_split_train_meta.csv'
-    import pandas as pd
-    df = pd.read_csv(file_name)
-
+    # Load data from the Camelyon17 dataset
+    dataset, data_sources, data_sources_test = camelyon17(max_training_data_size=2000)
+    
+    # Count the number of classes in each source
+    print("\n=== Number of classes per source ===")
+    for source_id, source_data in data_sources.items():
+        # Extract all labels from the source
+        labels = []
+        for item in source_data:
+            label = item['target']
+            labels.append(label.item() if hasattr(label, 'item') else label)
+        # Count unique classes
+        unique_classes = set(labels)
+        num_classes = len(unique_classes)
+        
+        print(f"Source {source_id}: {num_classes} classes - Classes: {sorted(unique_classes)}")
+        print(f"  Total samples: {len(labels)}")
+        print(f"  Class distribution: {collections.Counter(labels)}")
+    
     # from keras.utils import HDF5Matrix
     
     # from keras.preprocessing.image import ImageDataGenerator
 
-    # x_train = HDF5Matrix('camelyonpatch_level_2_split_train_x.h5-002', 'x')
+    # x_train = HDF5Matrix('camelyonpatch_level_2_split_train_x.h5-002', 'x')l
     # y_train = HDF5Matrix('camelyonpatch_level_2_split_train_y.h5', 'y')

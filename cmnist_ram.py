@@ -42,7 +42,7 @@ class ColoredMNISTRAM(datasets.VisionDataset):
                  transform=None, num_samples=5000, start_idx=0,
                  add_digit=None, fiif=False, root='./data',
                  source_id=-1, specified_class=None, red=1,
-                 num_digits_per_target=5):
+                 num_digits_per_target=5, binary_classification=True):
         super(ColoredMNISTRAM, self).__init__(root, 
                                               transform=transform)
         self.start_idx = start_idx
@@ -53,11 +53,16 @@ class ColoredMNISTRAM(datasets.VisionDataset):
         self.train = train
         self.fiif = fiif
         self.specified_class = specified_class
+        self.binary_classification = binary_classification
         self.prepare_colored_mnist(num_digits_per_target=num_digits_per_target)
         self.add_digit = add_digit
         self.source_id = source_id
-        self.group_string_map = {'y1r': 0, 'y0g':1, 'y1g': 2, 'y0r':3}
-        self.group_int_map = {value: key for key, value in self.group_string_map.items()}  
+        if self.binary_classification:
+            self.group_string_map = {'y1r': 0, 'y0g':1, 'y1g': 2, 'y0r':3}
+        else:
+            self.group_string_map = {f"y{y}a{a}":2*y + a for y in range(10) for a in (0, 1)}
+        self.group_int_map = {value: key for key, value in self.group_string_map.items()}
+        
         
     def __getitem__(self, index):
         """
@@ -79,15 +84,14 @@ class ColoredMNISTRAM(datasets.VisionDataset):
     def __len__(self):
         return len(self.data_label_tuples)
 
+    def set_group_string_map_test(self, group_string_map_test):
+        self.group_string_map_test = group_string_map_test
+        self.group_int_map_test = {value: key for key, value in self.group_string_map_test.items()}
+
     def group_mapping_fn(self, metadata):
         target_y = metadata[0]
         target_red = metadata[1]
-        y1r = (target_y == 1) & (target_red == 1)
-        y0g = (target_y == 0) & (target_red == 0)
-        y1g = (target_y == 1) & (target_red == 0)
-        y0r = (target_y == 0) & (target_red == 1)
-        groups = torch.zeros(len(metadata[0]))
-        groups = groups + y0g + y1g*2 + y0r*3
+        groups = target_y*2 + target_red
         return groups
             
     def prepare_colored_mnist(self, num_digits_per_target=5):
@@ -114,7 +118,9 @@ class ColoredMNISTRAM(datasets.VisionDataset):
                 if np.random.uniform() < self.spurious_noise:
                     color_red = not color_red
                 colored_arr = color_grayscale_arr(im_array, red=color_red,)
-                dataset.append((Image.fromarray(colored_arr), binary_label))
+                if self.binary_classification:
+                    label = binary_label
+                dataset.append((Image.fromarray(colored_arr), label))
             else:
                 pass
 
