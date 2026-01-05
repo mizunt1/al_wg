@@ -2,7 +2,6 @@ import pandas as pd
 from waterbirds_dataset import count_groups
 mdata = pd.read_csv('/network/scratch/m/mizu.nishikawa-toomey/waterbird_larger/metadata.csv')
 
-# 0,1,2,3 is train, 4 is test, 5 is validation
 
 # group 3 train construction 
 land = 0
@@ -36,13 +35,13 @@ mdata.loc[list(ww.index), ['split']] = 2
 mdata.loc[list(ll.index), ['split']] = 3
 
 
-###### do the same for test ##########
-#G4 wl test
+###### do the same for val ##########
+#G4 wl val
 
-lw = mdata_test[(mdata_test['y']==land) & (mdata_test['place'] ==water)] 
-ww = mdata_test[(mdata_test['y']==water) & (mdata_test['place'] ==water)] 
-wl = mdata_test[(mdata_test['y']==water) & (mdata_test['place'] ==land)] 
-ll = mdata_test[(mdata_test['y']==land) & (mdata_test['place'] ==land)] 
+lw = mdata_val[(mdata_val['y']==land) & (mdata_val['place'] ==water)] 
+ww = mdata_val[(mdata_val['y']==water) & (mdata_val['place'] ==water)] 
+wl = mdata_val[(mdata_val['y']==water) & (mdata_val['place'] ==land)] 
+ll = mdata_val[(mdata_val['y']==land) & (mdata_val['place'] ==land)] 
 
 # G0 wl
 mdata.loc[list(wl.index), ['split']] = 4
@@ -58,8 +57,23 @@ mdata.loc[list(ll.index), ['split']] = 7
 
 
 
-# change split id for val
+###### do the same for test #######
+lw = mdata_test[(mdata_test['y']==land) & (mdata_test['place'] ==water)] 
+ww = mdata_test[(mdata_test['y']==water) & (mdata_test['place'] ==water)] 
+wl = mdata_test[(mdata_test['y']==water) & (mdata_test['place'] ==land)] 
+ll = mdata_test[(mdata_test['y']==land) & (mdata_test['place'] ==land)] 
+
+# G0 wl
+mdata.loc[list(wl.index), ['split']] = 8
+
+# G1 lw
+mdata.loc[list(lw.index), ['split']] = 9
+
+# G2 ww
+mdata.loc[list(ww.index), ['split']] = 10
+
+# G3 ll
+mdata.loc[list(ll.index), ['split']] = 11
 
 
-mdata.loc[list(mdata_val.index), ['split']] = 8
-mdata.to_csv('/network/scratch/m/mizu.nishikawa-toomey/waterbird_larger/metadata_larger.csv')
+mdata.to_csv('/network/scratch/m/mizu.nishikawa-toomey/waterbird_larger/metadata_largerv2.csv')
