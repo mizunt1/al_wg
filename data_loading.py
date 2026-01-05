@@ -12,52 +12,8 @@ import collections
 import math
 from fmow_dataset import FMoWDataset
 
-def waterbirds(num_minority_points, num_majority_points,
-               metadata_path='metadata_larger.csv', root_dir='data/'):
-    use_cuda = True
-    kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
-    if img_size == None:
-        img_size = 448
-    
-    trans = transforms.Compose(
-        [transforms.Resize((img_size, img_size)), transforms.ToTensor()])
-    # training datasets
-    split_scheme = {"wl_train":0, "lw_train": 1, "ww_train": 2, "ll_train": 3,
-                    "wl_test":4, "lw_test": 5, "ww_test": 6, "ll_test": 7, "val": 8}
-    split_names = {"wl_train":"wl_train", "ww_train": 'ww_train', "ll_train": 'll_train',
-                   "lw_train": "lw_train","wl_test": 'wl_test',
-                   "ww_test":"ww_test", "ll_test": "ll_test", "lw_test": "lw_test",
-                   "val": "val"}
-
-    dataset = WaterbirdsDataset(version='larger', root_dir=root_dir, download=True,
-                                split_scheme=split_scheme, split_names=split_names,
-                                metadata_name=metadata_path, use_rep=False)
-    num_wl_points = num_minority_points //2
-    num_lw_points = num_minority_points //2
-    num_ww_points = num_majority_points //2
-    num_ll_points = num_majority_points //2
-    rng_state = np.random.get_state()
-    trainingwl_data = dataset.get_subset(rng_state, "wl_train", transform=trans, num_points=num_wl_points)
-    traininglw_data = dataset.get_subset(rng_state, "lw_train", num_points=num_lw_points, transform=trans)
-    trainingww_data = dataset.get_subset(rng_state, "ww_train", num_points=num_ww_points, transform=trans)
-    trainingll_data = dataset.get_subset(rng_state, "ll_train", num_points=num_ll_points, transform=trans)
-    print(f"Training data used sizes wl : {len(trainingwl_data)}, lw : {traininglw_data}, ww: {trainingww_data}, ll: {trainingll_data}")
-
-    ww_test = dataset.get_subset(rng_state, "ww_test", transform=trans)
-    wl_test = dataset.get_subset(rng_state, "wl_test", transform=trans)
-    ll_test = dataset.get_subset(rng_state, "ll_test", transform=trans)
-    lw_test = dataset.get_subset(rng_state, "lw_test", transform=trans)
-
-    val_data = dataset.get_subset(rng_state, "val", transform=trans)
-
-    training_data_dict = {'wl_train': trainingwl_data, 'lw_train': traininglw_data,
-                          'ww_train': trainingww_data, 'll_train': trainingll_data}
-    test_data_dict = {'ww_test': ww_test, 'll_test': ll_test,
-                      'lw_test': lw_test, 'wl_test': wl_test, 'val': val_data}
-    return dataset, training_data_dict, test_data_dict
-
 def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources=3,
-               metadata_path='metadata_larger.csv', root_dir='data/', img_size=None):
+               metadata_path='metadata_largerv2.csv', root_dir='data/', img_size=None):
     use_cuda = True
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
     if img_size == None:
@@ -67,21 +23,23 @@ def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources
         [transforms.Resize((img_size, img_size)), transforms.ToTensor()])
     # training datasets
     split_scheme = {"wl_train":0, "lw_train": 1, "ww_train": 2, "ll_train": 3,
-                    "wl_test":4, "lw_test": 5, "ww_test": 6, "ll_test": 7, "val": 8}
-    split_names = {"wl_train":"wl_train", "ww_train": 'ww_train', "ll_train": 'll_train',
-                   "lw_train": "lw_train","wl_test": 'wl_test',
-                   "ww_test":"ww_test", "ll_test": "ll_test", "lw_test": "lw_test",
-                   "val": "val"}
+                    "wl_val":4, "lw_val": 5, "ww_val": 6, "ll_val": 7,
+                    "wl_test":8, "lw_test": 9, "ww_test": 10, "ll_test": 11}
+    split_names = {key: key for key in split_scheme}
 
     dataset = WaterbirdsDataset(version='larger', root_dir=root_dir, download=True,
                                 split_scheme=split_scheme, split_names=split_names,
                                 metadata_name=metadata_path, use_rep=False)
     rng_state = np.random.get_state()
-    testww_data = dataset.get_subset(rng_state, "ww_test", transform=trans)
-    testwl_data = dataset.get_subset(rng_state, "wl_test", transform=trans)
-    testll_data = dataset.get_subset(rng_state, "ll_test", transform=trans)
-    testlw_data = dataset.get_subset(rng_state, "lw_test", transform=trans)
-    val_data = dataset.get_subset(rng_state, "val", transform=trans)
+    valww_data = dataset.get_subset(rng_state, "ww_val", transform=trans)
+    valwl_data = dataset.get_subset(rng_state, "wl_val", transform=trans)
+    valll_data = dataset.get_subset(rng_state, "ll_val", transform=trans)
+    vallw_data = dataset.get_subset(rng_state, "lw_val", transform=trans)
+    testww_data = dataset.get_subset(rng_state, "ww_val", transform=trans)
+    testwl_data = dataset.get_subset(rng_state, "wl_val", transform=trans)
+    testll_data = dataset.get_subset(rng_state, "ll_val", transform=trans)
+    testlw_data = dataset.get_subset(rng_state, "lw_val", transform=trans)
+
     ##### training data min group #####
     num_wl_points = num_minority_points //2
     num_lw_points = num_minority_points //2
@@ -91,8 +49,10 @@ def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources
     num_ww_points_per_group = num_ww_points //(n_maj_sources)
     num_ll_points_per_group = num_ll_points //(n_maj_sources)
     rng_state = np.random.get_state()
-    trainingwl_data = dataset.get_subset(rng_state, "wl_train", num_points=num_wl_points, transform=trans, source_id=0)
-    traininglw_data = dataset.get_subset(rng_state, "lw_train", num_points=num_lw_points, transform=trans, source_id=0)
+    trainingwl_data = dataset.get_subset(
+        rng_state, "wl_train", num_points=num_wl_points, transform=trans, source_id=0)
+    traininglw_data = dataset.get_subset(
+        rng_state, "lw_train", num_points=num_lw_points, transform=trans, source_id=0)
     s0 = torch.utils.data.ConcatDataset([trainingwl_data, traininglw_data])
 
     data_sources = collections.defaultdict()
@@ -106,61 +66,19 @@ def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources
     for i in range(1, n_maj_sources+1):
         indxs_to_sample_ww = ww_idxs[int(i*(num_ww_points_per_group)):int((i+1)*(num_ww_points_per_group)) ]
         indxs_to_sample_ll = ll_idxs[int(i*(num_ww_points_per_group)):int((i+1)*(num_ww_points_per_group)) ]
-        ww_data_one_group = dataset.get_subset(rng_state, "ww_train", sample_idx=indxs_to_sample_ww, source_id=i, transform=trans)
-        ll_data_one_group = dataset.get_subset(rng_state, "ll_train", sample_idx=indxs_to_sample_ll, source_id=i, transform=trans)
+        ww_data_one_group = dataset.get_subset(
+            rng_state, "ww_train", sample_idx=indxs_to_sample_ww, source_id=i, transform=trans)
+        ll_data_one_group = dataset.get_subset(
+            rng_state, "ll_train", sample_idx=indxs_to_sample_ll, source_id=i, transform=trans)
         one_source = torch.utils.data.ConcatDataset([ww_data_one_group, ll_data_one_group])
         data_sources[i] = one_source
+    val_data_dict = {'ww_val': valww_data, 'll_val': valll_data,
+                      'lw_val': vallw_data, 'wl_val': valwl_data}
     test_data_dict = {'ww_test': testww_data, 'll_test': testll_data,
-                      'lw_test': testlw_data, 'wl_test': testwl_data, 'val': val_data}
-    return dataset, data_sources, test_data_dict
+                      'lw_test': testlw_data, 'wl_test': testwl_data}
 
-
-def celeba(num_minority_points, num_majority_points, root_dir='/tmp/', img_size=None):
-    # Note that minority group is blond male and non blond female
-    # celeba dataset must be moved with the following command to /tmp/
-    # cp -r /network/scratch/m/mizu.nishikawa-toomey/celeba /tmp/
-    if img_size != None:
-        trans = transforms.Compose([transforms.Resize((img_size, img_size)), transforms.PILToTensor()])
-    else:
-        trans = transforms.Compose([transforms.PILToTensor()])
-    blond_male = CelebA(root_dir, download=True, transform=trans, split='train_mb')
-    blond_female = CelebA(root_dir, download=True, transform=trans, split='train_fb')
-    notblond_male = CelebA(root_dir, download=True, transform=trans, split='train_mnb')
-    notblond_female = CelebA(root_dir, download=True, transform=trans, split='train_fnb')
-
-    blond_male_test = CelebA(root_dir, download=True, transform=trans, split='test_mb')
-    blond_female_test = CelebA(root_dir, download=True, transform=trans, split='test_fnb')
-    notblond_male_test = CelebA(root_dir, download=True, transform=trans, split='test_mnb')
-    notblond_female_test = CelebA(root_dir, download=True, transform=trans, split='test_fnb')
-    val = CelebA(root_dir, download=True, transform=trans, split='valid')
-    
-    print(f"num male blond: {len(blond_male)}")
-    print(f'num female blond: {len(blond_female)}')
-    print(f'num male not blond : {len(notblond_male)}')
-    print(f'num female not blond: {len(notblond_female)}')
-
-    num_bm_points = int(num_minority_points /2)
-    num_bf_points = int(num_majority_points /2)
-    num_nbm_points = int(num_majority_points /2)
-    num_nbf_points = int(num_minority_points /2)
-    assert num_bm_points <= len(blond_male)
-    assert num_bf_points <= len(blond_female)
-    assert num_nbm_points <= len(notblond_male)
-    assert num_nbf_points <= len(notblond_female)
-    print(f"Training data used sizes mb : {num_bm_points}, fb : {num_bf_points}, mnb: {num_nbm_points}, fnb: {num_nbf_points}")
-    idx_bm_points = random.sample([i for i in range(len(blond_male))], k=num_bm_points)
-    idx_bf_points = random.sample([i for i in range(len(blond_female))], k=num_bf_points)
-    idx_nbm_points = random.sample([i for i in range(len(notblond_male))], k=num_nbm_points)
-    idx_nbf_points = random.sample([i for i in range(len(notblond_female))], k=num_nbf_points)
-    data0 = torch.utils.data.Subset(blond_male, idx_bm_points)
-    data1 = torch.utils.data.Subset(blond_female, idx_bf_points)
-    data2 = torch.utils.data.Subset(notblond_male, idx_nbm_points)
-    data3 = torch.utils.data.Subset(notblond_female, idx_nbf_points)
-    training_data_dict = {'mb_train': data0, 'fb_train': data1, 'mnb_train': data2, 'fnb_train': data3}
-    test_data_dict = {'mb_test': blond_male_test, 'fb_test': blond_female_test,
-                      'mnb_test': notblond_male_test, 'fnb_test': notblond_female_test, 'val': val}
-
-    return blond_male, training_data_dict, test_data_dict
+    test_data_dict = {'test': test_data}
+    return dataset, data_sources, val_data_dict, test_data_dict
 
 def celeba_n_sources(num_minority_points, num_majority_points, n_maj_sources = 3, root_dir='/tmp/', img_size=None):
     #  minority group is mb fnb
@@ -185,11 +103,15 @@ def celeba_n_sources(num_minority_points, num_majority_points, n_maj_sources = 3
     max_mnb_points = len(all_mnb)
     max_fnb_points = len(all_fnb)
     
+    val_mb = CelebA(root_dir, download=True, transform=trans, split='val_mb')
+    val_fb = CelebA(root_dir, download=True, transform=trans, split='val_fb')
+    val_mnb = CelebA(root_dir, download=True, transform=trans, split='val_mnb')
+    val_fnb = CelebA(root_dir, download=True, transform=trans, split='val_fnb')
+
     test_mb = CelebA(root_dir, download=True, transform=trans, split='test_mb')
     test_fb = CelebA(root_dir, download=True, transform=trans, split='test_fb')
     test_mnb = CelebA(root_dir, download=True, transform=trans, split='test_mnb')
     test_fnb = CelebA(root_dir, download=True, transform=trans, split='test_fnb')
-    val = CelebA(root_dir, download=True, transform=trans, split='valid')
     
     # minority 
     num_mb_points_per_group = int(num_minority_points /2)
@@ -225,63 +147,12 @@ def celeba_n_sources(num_minority_points, num_majority_points, n_maj_sources = 3
         one_source = torch.utils.data.ConcatDataset([fb_data_one_group, mnb_data_one_group])
         data_sources[i] = one_source
     test_data_dict = {'mb_test': test_mb, 'fb_test': test_fb,
-                      'mnb_test': test_mnb, 'fnb_test': test_fnb, 'val': val}
-    return test_mb, data_sources, test_data_dict
+                      'mnb_test': test_mnb, 'fnb_test': test_fnb}
+    val_data_dict = {'mb_val': val_mb, 'fb_val': val_fb,
+                      'mnb_val': val_mnb, 'fnb_val': val_fnb}
 
-def celeba_non_sp_load(num_minority_points, num_majority_points, batch_size, root_dir='/tmp/', img_size=None):
-    # Note that minority group is blond male and non blond female
-    if img_size != None:
-        trans = transforms.Compose([transforms.Resize((img_size, img_size)), transforms.PILToTensor()])
-    else:
-        trans = transforms.Compose([transforms.PILToTensor()])
+    return test_mb, data_sources, val_data_dict, test_data_dict
 
-    blond_male = CelebA(root_dir, download=True, transform=trans, split='train_bm')
-    blond_female = CelebA(root_dir, download=True, transform=trans, split='train_bf')
-    notblond_male = CelebA(root_dir, download=True, transform=trans, split='train_nbm')
-    notblond_female = CelebA(root_dir, download=True, transform=trans, split='train_nbf')
-
-    blond_male_test = CelebA(root_dir, download=True, transform=trans, split='test_bm')
-    blond_female_test = CelebA(root_dir, download=True, transform=trans, split='test_bf')
-    notblond_male_test = CelebA(root_dir, download=True, transform=trans, split='test_nbm')
-    notblond_female_test = CelebA(root_dir, download=True, transform=trans, split='test_nbf')
-    val = CelebA(root_dir, download=True, transform=trans, split='valid')
-    
-    print(f"num male blond: {len(blond_male)}")
-    print(f'num female blond: {len(blond_female)}')
-    print(f'num male not blond : {len(notblond_male)}')
-    print(f'num female not blond: {len(notblond_female)}')
-    max_points_female = len(notblond_female)
-    max_points_male = len(blond_male)
-
-    num_bm_points = int(num_minority_points /2)
-    num_nbm_points = int(num_minority_points /2)
-    num_bf_points = int(num_majority_points /2)
-    num_nbf_points = int(num_majority_points /2)
-    assert num_bm_points <= max_points_male
-    assert num_bf_points <= max_points_female
-    assert num_nbm_points <= max_points_male
-    assert num_nbf_points <= max_points_female
-    
-    idx_bm_points = random.sample([i for i in range(len(blond_male))], k=num_bm_points)
-    idx_bf_points = random.sample([i for i in range(len(blond_female))], k=num_bf_points)
-    idx_nbm_points = random.sample([i for i in range(len(notblond_male))], k=num_nbm_points)
-    idx_nbf_points = random.sample([i for i in range(len(notblond_female))], k=num_nbf_points)
-
-    data0 = torch.utils.data.Subset(blond_male, idx_bm_points)
-    data1 = torch.utils.data.Subset(blond_female, idx_bf_points)
-    data2 = torch.utils.data.Subset(notblond_male, idx_nbm_points)
-    data3 = torch.utils.data.Subset(notblond_female, idx_nbf_points)
-    print(f"Training data used sizes mb : {num_bm_points}, fb : {num_bf_points}, mnb: {num_nbm_points}, fnb: {num_nbf_points}")
-    training_data_dict = {'mb_train': data0, 'fb_train': data1, 'mnb_train': data2, 'fnb_train': data3}
-    training_data = torch.utils.data.DataLoader(
-        torch.utils.data.ConcatDataset([data0, data1, data2, data3]), shuffle=True, batch_size=batch_size)
-    test_data_dict = {'mb_test': blond_male_test, 'fb_test': blond_female_test,
-                      'mnb_test': notblond_male_test, 'fnb_test': notblond_female_test, 'val': val}
-    test_data = torch.utils.data.DataLoader(
-        torch.utils.data.ConcatDataset([blond_male_test, blond_female_test, notblond_male_test, notblond_female_test]),
-        shuffle=True, batch_size=batch_size)
-
-    return training_data, test_data, training_data_dict, test_data_dict
 
 def iwildcam_n_sources(n_sources, max_training_data_size=None, img_size=None):
     if img_size == None:
@@ -315,7 +186,6 @@ def iwildcam_n_sources(n_sources, max_training_data_size=None, img_size=None):
 def camelyon17(max_training_data_size, group_proportions=[], img_size=None):
     if len(group_proportions) >0:
         assert math.isclose(sum(group_proportions),1, rel_tol=0.02)
-    
     if img_size == None:
         img_size = 96
     trans = transforms.Compose(
@@ -328,20 +198,24 @@ def camelyon17(max_training_data_size, group_proportions=[], img_size=None):
     data_sources_test = collections.defaultdict()
     rng_state = np.random.get_state()
     for i in range(5):
-        testing = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=[j for j in range(400)], transform=trans, source_id=i)
+        testing = dataset.get_subset_based_on_metadata(rng_state, 'test', i, index_col, transform=trans, source_id=i)
         if max_training_data_size == None:
-            sample_idx_train = [j for j in range(400, max_points[i])]
+            sample_idx_train = [j for j in range(max_points[i])]
         else:
             if len(group_proportions) == 0:
                 data_size = max_training_data_size // 5
             else:
                 data_size = int(max_training_data_size*group_proportions[i])
-            sample_idx = [j for j in range(400, 400 + data_size)]
-        training = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=sample_idx,
+            sample_idx = [j for j in range(data_size)]
+        training = dataset.get_subset_based_on_metadata(rng_state, 'train', i, index_col, sample_idx=sample_idx,
                                                         transform=trans, source_id=i)
+        val = dataset.get_subset_based_on_metadata(rng_state, 'val', i, index_col, sample_idx=sample_idx,
+                                                        transform=trans, source_id=i)
+
         data_sources[i] = training
         data_sources_test[i] = testing
-    return dataset, data_sources, data_sources_test
+        data_source_val[i] = val
+    return dataset, data_sources, data_sources_val, data_sources_test
 
 def camelyon17_ood(max_training_data_size, group_proportions=[], test_source=0, img_size=None):
     if len(group_proportions) >0:
@@ -414,6 +288,44 @@ def fmow(max_training_data_size, group_proportions=[], img_size=None, num_source
         data_sources_test[i] = testing
     return dataset, data_sources, data_sources_test
 
+def fmow_ood(max_training_data_size, group_proportions=[], img_size=None, num_sources=5, test_size=400, test_source=0):
+    if len(group_proportions) >0:
+        assert math.isclose(sum(group_proportions),1, rel_tol=0.02), f"group proportions dont sum to one, sums to {sum(group_proportions)}"
+    
+    if img_size == None:
+        img_size = 224
+    trans = transforms.Compose(
+        [transforms.Resize((img_size, img_size)), transforms.ToTensor()])
+    
+    dataset = FMoWDataset(root_dir='/tmp/')
+    index_col = 0
+    max_points = dataset.list_number_of_points_per_source()
+    print(f"number of points in each source in whole dataset {max_points}")
+    data_sources = collections.defaultdict()
+    data_sources_test = collections.defaultdict()
+    rng_state = np.random.get_state()
+    testing = dataset.get_subset_based_on_metadata(rng_state, test_source, index_col, sample_idx=[j for j in range(test_size)], transform=trans, source_id=test_source)
+    train_sources = [i for i in range(5)]
+    train_sources.pop(test_source)
+
+    data_sources_test[test_source] = testing
+    for i in train_sources:
+        if max_training_data_size == None:
+            sample_idx_train = [j for j in range(test_size, max_points[i])]
+            data_size = len(sample_idx_train)
+        else:
+            if len(group_proportions) == 0:
+                data_size = max_training_data_size // 5
+            else:
+                data_size = int(max_training_data_size*group_proportions[i])
+            sample_idx_train = [j for j in range(test_size, data_size + test_size)]
+        assert max_points[i] >= data_size + test_size, f"for source {i}, requested points {data_size + test_size} is larger than availabe data size {max_points[i]}"
+
+        training = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=sample_idx_train,
+                                                        transform=trans, source_id=i)
+        data_sources[i] = training
+    return dataset, data_sources, data_sources_test
+
 def cmnist_n_sources(num_minority_points, num_majority_points,
                      n_maj_sources, causal_noise=0, spurious_noise=0, num_digits_per_target=5, binary_classification=True):
     trans = transforms.Compose([transforms.ToTensor()])
@@ -424,7 +336,7 @@ def cmnist_n_sources(num_minority_points, num_majority_points,
     else:
         multiplier = 1
     dataset = ColoredMNISTRAM(root='./data', spurious_noise=spurious_noise, 
-                              causal_noise=spurious_noise,
+                              causal_noise=causal_noise,
                               transform=trans, start_idx=start_idx, num_samples=num_minority_points*multiplier, 
                               red=0, source_id=0, num_digits_per_target=num_digits_per_target,
                               binary_classification=binary_classification)
@@ -440,32 +352,62 @@ def cmnist_n_sources(num_minority_points, num_majority_points,
                                   binary_classification=binary_classification)
         start_idx += num_majority_points_per_group*multiplier
         data_sources[i] = dataset
-    datasety0r_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+    datasety0r_val = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                         causal_noise=0,
                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
                                         source_id=0, red=0, specified_class = 0,
                                         num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
-    datasety1g_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+    datasety1g_val = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                         causal_noise=0,
                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
                                         source_id=0, red=0, specified_class =1,
                                         num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
 
     start_idx += 5000
-    datasety0g_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+    datasety0g_val = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                       causal_noise=0, specified_class=0,
                                       transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
                                       source_id=1, red=1,num_digits_per_target=num_digits_per_target,
                                       binary_classification=binary_classification)
 
-    datasety1r_unseen = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+    datasety1r_val = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                         causal_noise=0, specified_class=1,
                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
                                         source_id=1, red=1,num_digits_per_target=num_digits_per_target,
                                         binary_classification=binary_classification)
 
-    return dataset, data_sources, {'y0r': datasety0r_unseen, 'y1r': datasety1r_unseen,
-                                   'y0g': datasety0g_unseen, 'y1g': datasety1g_unseen}
+    start_idx += 5000
+    datasety0r_test = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                        causal_noise=0,
+                                        transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                        source_id=0, red=0, specified_class = 0,
+                                        num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+    datasety1g_test = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                        causal_noise=0,
+                                        transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                        source_id=0, red=0, specified_class =1,
+                                        num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+
+    start_idx += 5000
+    datasety0g_test = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                      causal_noise=0, specified_class=0,
+                                      transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                      source_id=1, red=1,num_digits_per_target=num_digits_per_target,
+                                      binary_classification=binary_classification)
+
+    datasety1r_test = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                        causal_noise=0, specified_class=1,
+                                        transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                        source_id=1, red=1,num_digits_per_target=num_digits_per_target,
+                                        binary_classification=binary_classification)
+
+    data_sources_val = {'y0r_val': datasety0r_val, 'y1r_val': datasety1r_val,
+                        'y0g_val': datasety0g_val, 'y1g_val': datasety1g_val}
+
+    data_sources_test = {'y0r_test': datasety0r_test, 'y1r_val': datasety1r_test,
+                         'y0g_test': datasety0g_test, 'y1g_val': datasety1g_test}
+
+    return dataset, data_sources, data_sources_val, data_sources_test
 
 def cmnist_n_sources_ood(num_minority_points, num_majority_points,
                      n_maj_sources, causal_noise=0, spurious_noise=0, num_digits_per_target=5, binary_classification=True):

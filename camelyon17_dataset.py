@@ -156,7 +156,7 @@ class Camelyon17Dataset(WILDSDataset):
         Args:
             - split (str): Split identifier, e.g., 'train', 'val', 'test'.
                            Must be in self.split_dict.
-            - frac (float): What fraction of the split to randomly sample.
+g            - frac (float): What fraction of the split to randomly sample.
                             Used for fast development on a small dataset.
             - transform (function): Any data transformations to be applied to the input x.
         Output:
