@@ -8,7 +8,7 @@ class cmnist:
     batch_size: int = 130
     num_epochs: int = 50
     num_majority_points: int = 4000
-    num_minority_points: int = 400
+    num_minority_points: int = 400 #400
     al_iters: int  = 100
     al_size: int = 10
     batch_size_test: int = 64
@@ -92,7 +92,22 @@ class fmow:
     num_classes: int = 62
     group_proportions: list = field(default_factory=lambda: [0.2 for i in range(5)])
     max_training_data_size: int = None
-    
+
+@dataclass
+class fmow_ood:
+    data_mode: str = 'fmow_ood'
+    model_name: str = 'BayesianNetDino'
+    lr: float = 1e-4
+    batch_size: int = 20
+    num_epochs: int = 30
+    al_iters: int  = 100
+    al_size: int = 6000
+    batch_size_test: int = 20
+    n_maj_sources: int = 4
+    num_classes: int = 62
+    group_proportions: list = field(default_factory=lambda: [0.2 for i in range(5)])
+    max_training_data_size: int = None
+
 @dataclass
 class camelyon:
     data_mode: str = 'camelyon'

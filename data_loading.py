@@ -76,8 +76,6 @@ def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources
                       'lw_val': vallw_data, 'wl_val': valwl_data}
     test_data_dict = {'ww_test': testww_data, 'll_test': testll_data,
                       'lw_test': testlw_data, 'wl_test': testwl_data}
-
-    test_data_dict = {'test': test_data}
     return dataset, data_sources, val_data_dict, test_data_dict
 
 def celeba_n_sources(num_minority_points, num_majority_points, n_maj_sources = 3, root_dir='/tmp/', img_size=None):
@@ -196,25 +194,29 @@ def camelyon17(max_training_data_size, group_proportions=[], img_size=None):
     print(max_points)
     data_sources = collections.defaultdict()
     data_sources_test = collections.defaultdict()
+    data_sources_val = collections.defaultdict()
     rng_state = np.random.get_state()
     for i in range(5):
-        testing = dataset.get_subset_based_on_metadata(rng_state, 'test', i, index_col, transform=trans, source_id=i)
+        testing = dataset.get_subset_based_on_metadata(
+            rng_state, i, index_col, sample_idx=[j for j in range(400)],
+            transform=trans, source_id=i)
+        sample_idx_val = [j for j in range(400, 800)]
+        val = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=sample_idx_val,
+                                                        transform=trans, source_id=i)
         if max_training_data_size == None:
-            sample_idx_train = [j for j in range(max_points[i])]
+            sample_idx_train = [j for j in range(800, max_points[i])]
         else:
             if len(group_proportions) == 0:
                 data_size = max_training_data_size // 5
             else:
                 data_size = int(max_training_data_size*group_proportions[i])
-            sample_idx = [j for j in range(data_size)]
-        training = dataset.get_subset_based_on_metadata(rng_state, 'train', i, index_col, sample_idx=sample_idx,
+                sample_idx_train = [j for j in range(800, data_size)]
+        training = dataset.get_subset_based_on_metadata(rng_state,
+                                                        i, index_col, sample_idx=sample_idx_train,
                                                         transform=trans, source_id=i)
-        val = dataset.get_subset_based_on_metadata(rng_state, 'val', i, index_col, sample_idx=sample_idx,
-                                                        transform=trans, source_id=i)
-
         data_sources[i] = training
         data_sources_test[i] = testing
-        data_source_val[i] = val
+        data_sources_val[i] = val
     return dataset, data_sources, data_sources_val, data_sources_test
 
 def camelyon17_ood(max_training_data_size, group_proportions=[], test_source=0, img_size=None):
@@ -338,7 +340,7 @@ def cmnist_n_sources(num_minority_points, num_majority_points,
     dataset = ColoredMNISTRAM(root='./data', spurious_noise=spurious_noise, 
                               causal_noise=causal_noise,
                               transform=trans, start_idx=start_idx, num_samples=num_minority_points*multiplier, 
-                              red=0, source_id=0, num_digits_per_target=num_digits_per_target,
+                              red=1, source_id=0, num_digits_per_target=num_digits_per_target,
                               binary_classification=binary_classification)
     data_sources[0] = dataset
     start_idx += num_minority_points*multiplier
@@ -348,10 +350,11 @@ def cmnist_n_sources(num_minority_points, num_majority_points,
         dataset = ColoredMNISTRAM(root='./data', spurious_noise=spurious_noise, 
                                   causal_noise=causal_noise,
                                   transform=trans, start_idx=start_idx, num_samples=num_majority_points_per_group*multiplier, 
-                                  red=1, source_id=i,num_digits_per_target=num_digits_per_target,
+                                  red=0, source_id=i, num_digits_per_target=num_digits_per_target,
                                   binary_classification=binary_classification)
         start_idx += num_majority_points_per_group*multiplier
         data_sources[i] = dataset
+
     datasety0r_val = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                         causal_noise=0,
                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
@@ -367,7 +370,7 @@ def cmnist_n_sources(num_minority_points, num_majority_points,
     datasety0g_val = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                       causal_noise=0, specified_class=0,
                                       transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
-                                      source_id=1, red=1,num_digits_per_target=num_digits_per_target,
+                                      source_id=1, red=1, num_digits_per_target=num_digits_per_target,
                                       binary_classification=binary_classification)
 
     datasety1r_val = ColoredMNISTRAM(root='./data', spurious_noise=0, 
@@ -404,10 +407,10 @@ def cmnist_n_sources(num_minority_points, num_majority_points,
     data_sources_val = {'y0r_val': datasety0r_val, 'y1r_val': datasety1r_val,
                         'y0g_val': datasety0g_val, 'y1g_val': datasety1g_val}
 
-    data_sources_test = {'y0r_test': datasety0r_test, 'y1r_val': datasety1r_test,
-                         'y0g_test': datasety0g_test, 'y1g_val': datasety1g_test}
+    data_sources_test = {'y0r_test': datasety0r_test, 'y1r_test': datasety1r_test,
+                         'y0g_test': datasety0g_test, 'y1g_test': datasety1g_test}
 
-    return dataset, data_sources, data_sources_val, data_sources_test
+    return dataset, data_sources, data_sources_test, data_sources_val
 
 def cmnist_n_sources_ood(num_minority_points, num_majority_points,
                      n_maj_sources, causal_noise=0, spurious_noise=0, num_digits_per_target=5, binary_classification=True):

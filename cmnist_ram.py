@@ -58,7 +58,7 @@ class ColoredMNISTRAM(datasets.VisionDataset):
         self.add_digit = add_digit
         self.source_id = source_id
         if self.binary_classification:
-            self.group_string_map = {'y1r': 0, 'y0g':1, 'y1g': 2, 'y0r':3}
+            self.group_string_map = {'y0g': 0, 'y0r':1, 'y1g': 2, 'y1r':3}
         else:
             self.group_string_map = {f"y{y}a{a}":2*y + a for y in range(10) for a in (0, 1)}
         self.group_int_map = {value: key for key, value in self.group_string_map.items()}
@@ -93,7 +93,7 @@ class ColoredMNISTRAM(datasets.VisionDataset):
         target_red = metadata[1]
         groups = target_y*2 + target_red
         return groups
-            
+
     def prepare_colored_mnist(self, num_digits_per_target=5):
         assert num_digits_per_target <= 5
         target_y0 = [i for i in range(5)][:num_digits_per_target]
@@ -148,7 +148,7 @@ def return_log_probs(model, dataloader, num_classes=2, num_models_k=100):
     return to_fill
 
 def train_batched(model=None, epochs=30, dataloader=None,
-                  dataloader_test=None, lr=0.001, flatten=False, num_groups=2):
+                  dataloader_test=None, lr=0.001, flatten=False):
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     optimizer = optim.Adam(model.parameters(), lr=lr)

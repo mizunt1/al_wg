@@ -96,11 +96,14 @@ class CelebA(VisionDataset):
             "train_fb": 4,
             "train_mnb": 5,
             "train_fnb": 6,
-            "test_mb": 7,
-            "test_fb": 8,
-            "test_mnb": 9,
-            "test_fnb": 10,
-            "valid": 1,
+            "val_mb": 7,
+            "val_fb": 8,
+            "val_mnb": 9,
+            "val_fnb": 10,
+            "test_mb": 11,
+            "test_fb": 12,
+            "test_mnb": 13,
+            "test_fnb": 14,
             "all": None,
         }
         split_ = split_map[
@@ -109,10 +112,11 @@ class CelebA(VisionDataset):
                 "split",
                 ("train_mb", "train_fb", "train_mnb", "train_fnb",
                  "test_mb", "test_fb", "test_mnb", "test_fnb",
-                 "valid", "all"),
+                 "val_mb", "val_fb", "val_mnb", "val_fnb",
+                 "all"),
             )
         ]
-        splits = self._load_csv("celeb_a_labelled_groups.txt")
+        splits = self._load_csv("celeb_a_labelled_groupsv2.txt")
         #splits = self._load_csv("list_eval_partition.txt")
         identity = self._load_csv("identity_CelebA.txt")
         bbox = self._load_csv("list_bbox_celeba.txt", header=1)

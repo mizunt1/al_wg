@@ -7,23 +7,23 @@ import matplotlib.pyplot as plt
 import collections
 from torch.nn import functional as F
 
-def cross_entropy_per_group(model, data_test):
-    groups = np.unique(data_test['u_hat'])
+def cross_entropy_per_source(model, data_test):
+    sources = np.unique(data_test['u_hat'])
     entropy = nn.CrossEntropyLoss(reduction='none')
     output = model(torch.from_numpy(data_test['x']))
     ents = entropy(output, torch.from_numpy(data_test['y'])).detach().numpy()
-    group_ents = []
-    for group in groups:
-        average_group_ent = sum(ents[data_test['u_hat'] == group])/len(data_test['u_hat'] == group)
-        group_ents.append(average_group_ent)
-    return np.array(group_ents)
+    source_ents = []
+    for source in sources:
+        average_source_ent = sum(ents[data_test['u_hat'] == source])/len(data_test['u_hat'] == source)
+        source_ents.append(average_source_ent)
+    return np.array(source_ents)
 
 def sampling_proportions_entropy(entropy_0, entropy_1):
     """
-    Given first entropy values for each group and second entropy values for each group
-    return the sampling proportions for each group.
-    Each entropy value is given as a dictionary where the key is group id and value is the
-    average entropy for that group on the test set.
+    Given first entropy values for each source and second entropy values for each source
+    return the sampling proportions for each source.
+    Each entropy value is given as a dictionary where the key is source id and value is the
+    average entropy for that source on the test set.
     """
     if entropy_0[0] == -1:
         sampling_proportions = np.array([1/len(entropy_0) for i in range(len(entropy_0))])
@@ -31,7 +31,7 @@ def sampling_proportions_entropy(entropy_0, entropy_1):
         entropy_change = entropy_0 - entropy_1
         entropy_norm = abs(entropy_change)/(entropy_1)
         sampling_proportions = entropy_norm/sum(entropy_norm)
-        # calculate sampling proportions based on entropy change of each group
+        # calculate sampling proportions based on entropy change of each source
     #sampling_proportions = np.array([1/len(entropy_0) for i in range(len(entropy_0))])
     return sampling_proportions
 
@@ -143,7 +143,7 @@ def calc_ent_batched(model, dataloader, num_models=100):
     for batch_idx, out_dict in enumerate(dataloader):
         data = out_dict['data']
         target = out_dict['target']
-        group_id = out_dict['source_id']
+        source_id = out_dict['source_id']
         data, target = data.to(device), target.to(device)
         #data = data.reshape(-1, 3*28*28)
         ents = entropy_drop_out(model, data, num_models=num_models)
@@ -183,7 +183,7 @@ def calc_ent_per_point_batched(model, dataloader, num_models=100, mean=False, mi
         return ents
 
 
-def calc_ent_per_group_batched(model, dataloader, num_groups, num_models=100, mi=False, return_averaged_only=True):
+def calc_ent_per_source_batched(model, dataloader, num_sources, num_models=100, mi=False, return_averaged_only=True):
     total_ent = 0
     total_xent = 0
     use_cuda = True
@@ -192,12 +192,12 @@ def calc_ent_per_group_batched(model, dataloader, num_groups, num_models=100, mi
     model.model.eval()
     model.to(device)
     ents = []
-    groups = []
-    group_ents = collections.defaultdict(float)
+    sources = []
+    source_ents = collections.defaultdict(float)
     for batch_idx, out_dict in enumerate(dataloader):
         data = out_dict['data']
         target = out_dict['target']
-        group_id = out_dict['source_id']
+        source_id = out_dict['source_id']
         data, target = data.to(device), target.to(device)
         #data = data.reshape(-1, 3*28*28)
         if mi:
@@ -205,35 +205,35 @@ def calc_ent_per_group_batched(model, dataloader, num_groups, num_models=100, mi
         else:
             ent = entropy_drop_out(model, data, num_models=num_models)
         ents.extend(ent.cpu().tolist())
-        groups.extend(group_id.cpu().tolist())
-    for i in range(num_groups):
-        group_ent = np.array(ents) @ (np.array(groups)==i)
-        group_ents[i] = group_ent / (sum(np.array(groups)==i) + 1e-3)
+        sources.extend(source_id.cpu().tolist())
+    for i in range(num_sources):
+        source_ent = np.array(ents) @ (np.array(sources)==i)
+        source_ents[i] = source_ent / (sum(np.array(sources)==i) + 1e-3)
     if return_averaged_only:
-        return dict(sorted(group_ents.items()))
+        return dict(sorted(source_ents.items()))
     else:
-        return dict(sorted(group_ents.items())), ents, groups
+        return dict(sorted(source_ents.items())), ents, sources
     
-def test_batched_per_group(model, dataloader_test, num_groups):
+def test_batched_per_source(model, dataloader_test, num_sources):
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     correct_array = []
-    group_array = []
-    group_acc = collections.defaultdict(float)
+    source_array = []
+    source_acc = collections.defaultdict(float)
     model.eval()
     for batch_idx, out_dict in enumerate(dataloader_test):
         data = out_dict['data']
         target = out_dict['target']
-        group_id = out_dict['source_id']
+        source_id = out_dict['source_id']
         data, target = data.to(device), target.to(device)
         output = model(data).squeeze(1)
         out = output.argmax(axis=1)
         correct_array.extend((out == target).cpu().tolist())
-        group_array.extend(group_id.tolist())
-    for i in range(num_groups):
-        group_accs = np.array(correct_array) @ (np.array(group_array)==i)
-        group_acc[i] = group_accs / (sum(np.array(group_array)==i) + 1e-3)
-    return group_acc
+        source_array.extend(source_id.tolist())
+    for i in range(num_sources):
+        source_accs = np.array(correct_array) @ (np.array(source_array)==i)
+        source_acc[i] = source_accs / (sum(np.array(source_array)==i) + 1e-3)
+    return source_acc
 
 def log_dict(start_log, to_append):
     for key, value in to_append.items():

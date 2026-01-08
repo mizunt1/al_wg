@@ -5,7 +5,7 @@ import collections
 import sys
 import torch
 import models
-from active_learning_data import ActiveLearningDataGroups
+from active_learning_data import ActiveLearningDataSources
 from tools import calc_ent_batched, calc_ent_per_point_batched, plot_dictionary, log_dict
 from pprint import pprint
 import wandb
@@ -16,12 +16,12 @@ from wilds import get_dataset
 from wilds.common.data_loaders import get_train_loader
 from waterbirds_dataset import WaterbirdsDataset
 from trainer import train_batched, test_batched
-from acquisitions import (Random, UniformGroups,
-                          EntropyPerGroup, AccuracyPerGroup, Entropy,
-                          EntropyUniformGroups, MI, EntropyPerGroupNLargest, EntropyPerGroupOrdered)
-from data_loading import (waterbirds, waterbirds_n_sources, celeba, celeba_n_sources,
-                          cmnist_n_sources, iwildcam_n_sources, camelyon17, camelyon17_ood, cmnist_n_sources_ood,
-                          cmnist_n_sources_diff_env, fmow)
+from acquisitions import (Random, UniformSources,
+                          EntropyPerSource, AccuracyPerSource, Entropy,
+                          EntropyUniformSources, MI, EntropyPerSourceNLargest, EntropyPerSourceOrdered)
+from data_loading import (waterbirds_n_sources, celeba_n_sources,
+                          cmnist_n_sources, camelyon17, camelyon17_ood, cmnist_n_sources_ood,
+                          fmow, fmow_ood)
 from torch.utils.data import ConcatDataset, DataLoader
 import arguments
 
@@ -51,27 +51,30 @@ def main(args):
     true_group_in_loss = False
     group_string_map_test = None
     if args.data_mode == 'wb':
-        dataset, training_data_dict, test_data_dict = waterbirds_n_sources(args.num_minority_points,
+        dataset, training_data_dict, val_data_dict, test_data_dict = waterbirds_n_sources(args.num_minority_points,
                                                                            args.num_majority_points,
                                                                            n_maj_sources=args.n_maj_sources,
                                                                            metadata_path='metadata_larger.csv',
                                                                            root_dir="/network/scratch/m/"
                                                                            "mizu.nishikawa-toomey/waterbird_larger")
-        num_groups = args.n_maj_sources + 1
+        num_groups = 4
+        num_sources = args.n_maj_sources + 1
     if args.data_mode == 'celeba':
-        dataset, training_data_dict, test_data_dict = celeba_n_sources(args.num_minority_points,
+        dataset, training_data_dict, val_data_dict, test_data_dict = celeba_n_sources(args.num_minority_points,
                                                                        args.num_majority_points, args.n_maj_sources)
-        num_groups = args.n_maj_sources 
+        num_groups = 4
+        num_sources = args.n_maj_sources 
     if args.data_mode == 'cmnist':
-        dataset, training_data_dict, test_data_dict = cmnist_n_sources(args.num_minority_points, args.num_majority_points,
+        dataset, training_data_dict, val_data_dict, test_data_dict = cmnist_n_sources(args.num_minority_points, args.num_majority_points,
                                                                        n_maj_sources=args.n_maj_sources,
                                                                        causal_noise=args.causal_noise,
                                                                        spurious_noise=args.spurious_noise,
                                                                        num_digits_per_target=args.num_digits_per_target,
                                                                        binary_classification=args.binary_classification)
-        num_groups = args.n_maj_sources + 1
+        num_sources = args.n_maj_sources + 1
+        num_groups = 4
     if args.data_mode == 'cmnist_ood':
-        dataset, training_data_dict, test_data_dict = cmnist_n_sources_ood(args.num_minority_points, args.num_majority_points,
+        dataset, training_data_dict, val_data_dict, test_data_dict = cmnist_n_sources_ood(args.num_minority_points, args.num_majority_points,
                                                                            n_maj_sources=args.n_maj_sources,
                                                                            causal_noise=args.causal_noise,
                                                                            spurious_noise=args.spurious_noise,
@@ -80,99 +83,109 @@ def main(args):
         num_groups = args.n_maj_sources
         dataset.set_group_string_map_test({'y0r_y1g': 'y01_y1g'})
 
-    if args.data_mode == 'cmnist_diff_envs':
-        dataset, training_data_dict, test_data_dict = cmnist_n_sources_diff_env(args.num_minority_points, args.num_majority_points,
-                                                                                n_maj_sources=args.n_maj_sources,
-                                                                                causal_noise=args.causal_noise,
-                                                                                spurious_noise=args.spurious_noise,
-                                                                                num_digits_per_target=args.num_digits_per_target)
-
-    if args.data_mode == 'iwildcam':
-        dataset, training_data_dict, test_data_dict = iwildcam_n_sources(n_sources=args.n_maj_sources)
-        true_group_in_loss = True
-
     if args.data_mode == 'camelyon':
-        group_proportions = args.group_proportions
-        if len(group_proportions) == 1:
-            group_proportions = np.random.dirichlet(np.ones(5))
-        print(group_proportions)
-        dataset, training_data_dict, test_data_dict = camelyon17(max_training_data_size=6000, group_proportions=group_proportions)
-        group_string_map = {str(key): key for key, value in training_data_dict.items()}
-        dataset.set_group_string_map(group_string_map)
+        source_proportions = args.source_proportions
+        if len(source_proportions) == 1:
+            source_proportions = np.random.dirichlet(np.ones(5))
+        print(source_proportions)
+        dataset, training_data_dict, val_data_dict, test_data_dict = camelyon17(max_training_data_size=6000, source_proportions=source_proportions)
+        source_string_map = {str(key): key for key, value in training_data_dict.items()}
+        dataset.set_source_string_map(source_string_map)
         num_groups = 5
+        num_sources = 5
 
     if args.data_mode == 'camelyon_ood':
-        group_proportions = args.group_proportions
-        if len(group_proportions) == 1:
-            group_proportions = np.random.dirichlet(np.ones(5))
-        print(group_proportions)
+        source_proportions = args.source_proportions
+        if len(source_proportions) == 1:
+            source_proportions = np.random.dirichlet(np.ones(4))
+        print(source_proportions)
         dataset, training_data_dict, test_data_dict = camelyon17_ood(max_training_data_size=6000,
-                                                                     group_proportions=group_proportions,
+                                                                     source_proportions=source_proportions,
                                                                      test_source=args.test_source)
         
-        group_string_map = {str(key): key for key, value in training_data_dict.items()}
-        dataset.set_group_string_map(group_string_map)
-        dataset.set_group_string_map_test({str(args.test_source): args.test_source})
-        num_groups = 4
+        source_string_map = {str(key): key for key, value in training_data_dict.items()}
+        dataset.set_source_string_map(source_string_map)
+        dataset.set_source_string_map_test({str(args.test_source): args.test_source})
+        num_sources = 4
+        num_sources = 4
         group_string_map_test = dataset.group_string_map_test
 
     if args.data_mode == 'fmow':
-        group_proportions = args.group_proportions
-        print(group_proportions)
-        to_log.update({'group_proportions': group_proportions})
+        source_proportions = args.source_proportions
+        print(source_proportions)
+        to_log.update({'source_proportions': source_proportions})
         dataset, training_data_dict, test_data_dict = fmow(max_training_data_size=args.max_training_data_size,
-                                                           group_proportions=group_proportions)
-        #group_string_map = {str(key): key for key, value in training_data_dict.items()}
-        #dataset.set_group_string_map(group_string_map)
+                                                           source_proportions=source_proportions)
+        #source_string_map = {str(key): key for key, value in training_data_dict.items()}
+        #dataset.set_source_string_map(source_string_map)
+
+    if args.data_mode == 'fmow_ood':
+        source_proportions = args.source_proportions
+        if len(source_proportions) == 1:
+            source_proportions = np.random.dirichlet(np.ones(4))
+        print(source_proportions)
+        to_log.update({'source_proportions': source_proportions})
+        dataset, training_data_dict, test_data_dict = fmow_ood(max_training_data_size=args.max_training_data_size,
+                                                               source_proportions=source_proportions,
+                                                               test_source=args.test_source)
+        source_string_map = {str(key): key for key, value in training_data_dict.items()}
+        dataset.set_source_string_map(source_string_map)
+        dataset.set_source_string_map_test({str(args.test_source): args.test_source})
+        num_sources = 4
+        source_string_map_test = dataset.source_string_map_test
+
+        #source_string_map = {str(key): key for key, value in training_data_dict.items()}
+        #dataset.set_source_string_map(source_string_map)
 
 
     print("data loaded")
     num_sources = len(training_data_dict)
-    samples_per_group = int(args.al_size / num_groups)
+    samples_per_source = int(args.al_size / num_sources)
     
-    group_dict_uniform_groups = {key: samples_per_group for key in range(num_groups)}
-    #group_dict_uniform_groups = {0: int(args.min_prop*args.al_size), 1: int((1-args.min_prop)*args.al_size)}
-    
-    al_data = ActiveLearningDataGroups([*training_data_dict.values()], [*test_data_dict.values()], 2, args.batch_size,
+    source_dict_uniform_sources = {key: samples_per_source for key in range(num_sources)}
+    #source_dict_uniform_sources = {0: int(args.min_prop*args.al_size), 1: int((1-args.min_prop)*args.al_size)}
+    al_data = ActiveLearningDataSources([*training_data_dict.values()],
+                                       [*val_data_dict.values()],
+                                       [*test_data_dict.values()], 2, args.batch_size,
                                        batch_size_test=args.batch_size_test)
     
     method_map = {
         'random': Random(al_data, args.al_size),
         'random_gdro': Random(al_data, args.al_size),
-        'uniform_groups': UniformGroups(al_data, group_dict_uniform_groups, args.al_size),
-        'entropy_per_group': EntropyPerGroup(al_data=al_data, al_size=args.al_size,
-                                             temperature=args.temperature, num_groups=num_groups),
-        'entropy_per_group_soft_rank': EntropyPerGroup(al_data=al_data, al_size=args.al_size,
-                                             temperature=args.temperature, num_groups=num_groups,
-                                             within_group_acquisition='softrank'),
-        'entropy_per_group_soft_max': EntropyPerGroup(al_data=al_data, al_size=args.al_size,
-                                             temperature=args.temperature, num_groups=num_groups,
-                                             within_group_acquisition='softmax'),
-        'entropy_per_group_power': EntropyPerGroup(al_data=al_data, al_size=args.al_size,
-                                             temperature=args.temperature, num_groups=num_groups,
-                                             within_group_acquisition='power'),
-        'entropy_per_group_top_k': EntropyPerGroup(al_data=al_data, al_size=args.al_size,
-                                                   temperature=args.temperature, num_groups=num_groups,
-                                                   within_group_acquisition='topk'),
-        'n_largest_soft_rank': EntropyPerGroupNLargest(al_data=al_data, al_size=args.al_size,
-                                                       num_groups=num_groups, n=args.n_groups_size,
-                                             within_group_acquisition='softrank'),
-        'n_largest_soft_max': EntropyPerGroupNLargest(al_data=al_data, al_size=args.al_size,
-                                                      num_groups=num_groups, n=args.n_groups_size,
-                                             within_group_acquisition='softmax'),
-        'n_largest_power': EntropyPerGroupNLargest(al_data=al_data, al_size=args.al_size,
-                                                   num_groups=num_groups, n=args.n_groups_size,
-                                             within_group_acquisition='power'),
-        'n_largest_top_k': EntropyPerGroupNLargest(al_data=al_data, al_size=args.al_size,
-                                                   num_groups=num_groups, n=args.n_groups_size,
-                                                   within_group_acquisition='topk'),
+        'uniform_sources': UniformSources(al_data, source_dict_uniform_sources, args.al_size),
+        'entropy_per_source': EntropyPerSource(al_data=al_data, al_size=args.al_size,
+                                             temperature=args.temperature, num_sources=num_sources),
+        'entropy_per_source_soft_rank': EntropyPerSource(al_data=al_data, al_size=args.al_size,
+                                             temperature=args.temperature, num_sources=num_sources,
+                                             within_source_acquisition='softrank'),
+        'entropy_per_source_soft_max': EntropyPerSource(al_data=al_data, al_size=args.al_size,
+                                             temperature=args.temperature, num_sources=num_sources,
+                                             within_source_acquisition='softmax'),
+        'entropy_per_source_power': EntropyPerSource(al_data=al_data, al_size=args.al_size,
+                                             temperature=args.temperature, num_sources=num_sources,
+                                             within_source_acquisition='power'),
+        'entropy_per_source_top_k': EntropyPerSource(al_data=al_data, al_size=args.al_size,
+                                                   temperature=args.temperature, num_sources=num_sources,
+                                                   within_source_acquisition='topk'),
+        'n_largest_soft_rank': EntropyPerSourceNLargest(al_data=al_data, al_size=args.al_size,
+                                                       num_sources=num_sources, n=args.m_sources_size,
+                                             within_source_acquisition='softrank'),
+        'n_largest_soft_max': EntropyPerSourceNLargest(al_data=al_data, al_size=args.al_size,
+                                                      num_sources=num_sources, n=args.m_sources_size,
+                                             within_source_acquisition='softmax'),
+        'n_largest_power': EntropyPerSourceNLargest(al_data=al_data, al_size=args.al_size,
+                                                   num_sources=num_sources, n=args.m_sources_size,
+                                             within_source_acquisition='power'),
+        'n_largest_top_k': EntropyPerSourceNLargest(al_data=al_data, al_size=args.al_size,
+                                                   num_sources=num_sources, n=args.m_sources_size,
+                                                   within_source_acquisition='topk'),
 
-        'mi_per_group': EntropyPerGroup(al_data=al_data, al_size=args.al_size,
-                                             temperature=args.temperature, num_groups=num_groups, mi=True),
+        'mi_per_source': EntropyPerSource(al_data=al_data, al_size=args.al_size,
+                                             temperature=args.temperature, num_sources=num_sources, mi=True),
         'entropy': Entropy(al_data=al_data, al_size=args.al_size),
         'mi': MI(al_data=al_data, al_size=args.al_size),
-        'entropy_uniform_groups': EntropyUniformGroups(al_data=al_data, al_size=args.al_size),
-        'entropy_per_group_n_largest': EntropyPerGroupNLargest(al_data=al_data, al_size=args.al_size, n=args.n_groups_size, num_groups=num_groups)}
+        'entropy_uniform_sources': EntropyUniformSources(al_data=al_data, al_size=args.al_size),
+        'entropy_per_source_n_largest': EntropyPerSourceNLargest(al_data=al_data, al_size=args.al_size, n=args.m_sources_size, num_sources=num_sources)}
     mi = False
     if args.acquisition == 'mi':
         mi = True
@@ -192,22 +205,23 @@ def main(args):
         torch.manual_seed(args.seed)
         model = getattr(models, args.model_name)
         model = model(args.num_classes, args.pretrained, args.frozen_weights)
-        dataloader_train, dataloader_test = al_data.get_train_and_test_loader(
+        dataloader_train, dataloader_val, dataloader_test = al_data.get_train_and_test_and_val_loader(
             batch_size=args.batch_size)
         num_points = len(al_data.train.indices)
-        proportion_correct_train, proportion_correct_test, groups_in_train, sources_in_train, wga = train_batched(
-            model=model, dataloader=dataloader_train,
+        proportion_correct_train, proportion_correct_val, proportion_correct_test, groups_in_train, sources_in_train, wga, wga_test = train_batched(
+            model=model, dataloader=dataloader_train, dataloader_val=dataloader_val,
             dataloader_test=dataloader_test, lr=args.lr, num_epochs=args.num_epochs,
             num_groups=num_groups, num_sources=num_sources, weight_decay=args.weight_decay,
             group_mapping_fn=dataset.group_mapping_fn, gdro=args.gdro,
-            group_string_map=dataset.group_string_map,
+            group_string_map=dataset.group_string_map, 
             group_string_map_test=group_string_map_test,
-            true_group_in_loss=true_group_in_loss, sample_batch_test=args.num_batch_test_samples)
+            model_checkpoint_path=f"/network/scratch/m/mizu.nishikawa-toomey/checkpoints/{args.mode}_{args.acquisition}_{args.seed}",
+            true_group_in_loss=true_group_in_loss, sample_batch_val=args.num_batch_val_samples)
         
-        # log training
+        # log training on wandb
         to_log.update({'train_acc': proportion_correct_train,
                        'num points':num_points,
-                       'wga': wga})
+                       'wga': wga, 'wga test': wga_test})
 
         # IDT FIX acquisition imports
         # calculate score over pool depending on acquisition method
@@ -220,14 +234,15 @@ def main(args):
         al_data.acquire_with_indices(indices)
 
         # compute metrics and logging for debugging
-        for group_name, data in test_data_dict.items():
+        for source_name, data in test_data_dict.items():
             score_test = calc_ent_per_point_batched(
                 model, DataLoader(data, batch_size=args.batch_size, drop_last=True), mean=True, mi=mi,
-                sampled_batches=args.num_batch_test_samples)
-            to_log.update({f'ent {group_name}': score_test})
-        to_log.update({f"groups {key}  in train" : value for key, value in groups_in_train.items()})
+                sampled_batches=args.num_batch_val_samples)
+            to_log.update({f'ent {source_name}': score_test})
+        to_log.update({f"sources {key}  in train" : value for key, value in sources_in_train.items()})
         to_log.update({f"source {key}  in train" : value for key, value in sources_in_train.items()})
         to_log.update(proportion_correct_test)
+        to_log.update(proportion_correct_val)
         wandb.log(to_log) 
         pprint(to_log)
         long_term_log = log_dict(log_term_log, to_log)
@@ -239,25 +254,24 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--mode', type=str, default='wb')
-    parser.add_argument('--num_batch_test_samples', type=int, default=300)
-    parser.add_argument('--n_groups_size', type=int, default=2)
     parser.add_argument('--num_digits_per_target', type=int, default=5)
     parser.add_argument('--weight_decay', type=float, default=0)
+    parser.add_argument('--m_sources_size', type=int, default=2)
     parser.add_argument('--temperature', type=float, default=0.1)
     parser.add_argument('--causal_noise', type=float, default=0)
     parser.add_argument('--spurious_noise', type=float, default=0)
     parser.add_argument('--acquisition', type=str, default='random')
-    parser.add_argument('--start_acquisition', type=str, default='uniform_groups')
+    parser.add_argument('--start_acquisition', type=str, default='uniform_sources')
     parser.add_argument('--project_name', type=str, default='test')
     parser.add_argument('--gdro', default=False, action='store_true')
     parser.add_argument('--frozen_weights', default=False, action='store_true')
     parser.add_argument('--pretrained', default=False, action='store_true')
-    parser.add_argument('--data_wo_sources', default=False, action='store_true')
+
     parser.add_argument('--max_training_data_size', type=int, default=None)
     parser.add_argument('--min_prop', type=float, default=None)
-    
+    parser.add_argument('--num_batch_val_samples', type=int, default=None)
     parser.add_argument('--model_name', type=str, default=None)
-    parser.add_argument('--group_proportions', type=float, nargs='+', default=None)
+    parser.add_argument('--source_proportions', type=float, nargs='+', default=None)
     parser.add_argument('--data_mode', type=str, default=None)
     parser.add_argument('--lr', type=float, default=None)
     parser.add_argument('--batch_size', type=int, default=None)
