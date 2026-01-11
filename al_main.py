@@ -1,4 +1,6 @@
 from torchvision import transforms
+import os
+from datetime import datetime
 import pickle
 import numpy as np
 import collections
@@ -195,7 +197,11 @@ def main(args):
     acquisition_method = method_map[args.start_acquisition]
     indices = acquisition_method.return_indices()
     al_data.acquire_with_indices(indices)
-        
+    now = datetime.now()
+    time = now.strftime("%A, %B %d, %Y %H:%M:%S")
+    path = f"/network/scratch/m/mizu.nishikawa-toomey/checkpoints/{args.mode}_{args.acquisition}_{args.seed}"
+    model_checkpoint_path = path + time + 'model.pt'
+
     for i in range(1, args.al_iters):
         print('al iteration: ', i)
         # setting up trainig
@@ -208,6 +214,7 @@ def main(args):
         dataloader_train, dataloader_val, dataloader_test = al_data.get_train_and_test_and_val_loader(
             batch_size=args.batch_size)
         num_points = len(al_data.train.indices)
+
         proportion_correct_train, proportion_correct_val, proportion_correct_test, groups_in_train, sources_in_train, wga, wga_test = train_batched(
             model=model, dataloader=dataloader_train, dataloader_val=dataloader_val,
             dataloader_test=dataloader_test, lr=args.lr, num_epochs=args.num_epochs,
@@ -215,7 +222,7 @@ def main(args):
             group_mapping_fn=dataset.group_mapping_fn, gdro=args.gdro,
             group_string_map=dataset.group_string_map, 
             group_string_map_test=group_string_map_test,
-            model_checkpoint_path=f"/network/scratch/m/mizu.nishikawa-toomey/checkpoints/{args.mode}_{args.acquisition}_{args.seed}",
+            model_checkpoint_path=model_checkpoint_path,
             true_group_in_loss=true_group_in_loss, sample_batch_val=args.num_batch_val_samples)
         
         # log training on wandb
@@ -247,6 +254,7 @@ def main(args):
         pprint(to_log)
         long_term_log = log_dict(log_term_log, to_log)
     plot_dictionary(to_log)
+    os.remove(model_checkpoint_path)
     return to_log
 
 if __name__ == "__main__":

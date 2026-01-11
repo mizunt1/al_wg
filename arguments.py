@@ -3,7 +3,7 @@ from dataclasses import dataclass, is_dataclass, fields, asdict, replace, field
 @dataclass
 class cmnist:
     data_mode: str = 'cmnist'
-    model_name: str = 'BayesianNetRes50ULarger'
+    model_name: str = 'BayesianNetDino'
     lr: float = 1e-4
     batch_size: int = 130
     num_epochs: int = 50

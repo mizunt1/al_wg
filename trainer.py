@@ -9,7 +9,7 @@ from wilds_dataset import WILDSDataset
 from gdro_loss import LossComputer
 import collections
 from early_stopping import EarlyStopping
-
+import time
 def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=None, dataloader_val=None,
                   weight_decay=0, lr=0.001, flatten=False, gdro=False, num_groups=None,
                   num_sources=None,
@@ -21,9 +21,7 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
         group_string_map_test = group_string_map
     train_acc_has_surpassed = False
     now = datetime.now()
-    formatted_full = now.strftime("%A, %B %d, %Y %H:%M:%S")
-    path = model_checkpoint_path + formatted_full + 'model.pt'
-    early_stopping = EarlyStopping(patience=20, verbose=True, path=path)
+    early_stopping = EarlyStopping(patience=20, verbose=True, path=model_checkpoint_path)
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -59,7 +57,7 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
                     nn.CrossEntropyLoss(reduce=False),
                     is_robust=True,
                     dataset=dataloader.dataset,
-                    n_sources=num_sources,
+                    n_groups=num_sources,
                     alpha=0.2,
                     gamma=0.1,
                     adj=None,
@@ -133,8 +131,6 @@ def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=No
     wga_test = min([value for key, value in test_acc_dict.items()])
     print('test acc dict: ')
     print(test_acc_dict)
-    # delete checkpoint at the end of training run. 
-    os.remove(early_stopping.path)
     
     return train_acc, val_acc_dict, test_acc_dict, group_count_dict, source_count_dict, wga, wga_test
 
