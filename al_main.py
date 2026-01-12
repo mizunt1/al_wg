@@ -87,7 +87,7 @@ def main(args):
 
     if args.data_mode == 'camelyon':
         source_proportions = args.source_proportions
-        if len(source_proportions) == 1:
+        if source_proportions is None:
             source_proportions = np.random.dirichlet(np.ones(5))
         print(source_proportions)
         dataset, training_data_dict, val_data_dict, test_data_dict = camelyon17(max_training_data_size=6000, source_proportions=source_proportions)

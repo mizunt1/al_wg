@@ -64,10 +64,10 @@ class Camelyon17Dataset(WILDSDataset):
         self._version = version
         self._data_dir = self.initialize_data_dir(root_dir, download)
         self._original_resolution = (96,96) 
-        self.source_string_map = {}
+        self.group_string_map = {}
         self.group_string_map_test = {}
-        self.source_int_map = {}
-        self.source_int_map_test = {}
+        self.group_int_map = {}
+        self.group_int_map_test = {}
         # Read in metadata
         self._metadata_df = pd.read_csv(
             os.path.join(self._data_dir, 'metadata.csv'),
@@ -133,8 +133,8 @@ class Camelyon17Dataset(WILDSDataset):
         super().__init__(root_dir, download, split_scheme)
 
     def set_source_string_map(self, source_string_map):
-        self.source_string_map = source_string_map
-        self.source_int_map = {value: key for key, value in self.source_string_map.items()}
+        self.group_string_map = source_string_map
+        self.group_int_map = {value: key for key, value in self.group_string_map.items()}
 
     def set_source_string_map_test(self, source_string_map_test):
         self.source_string_map_test = source_string_map_test

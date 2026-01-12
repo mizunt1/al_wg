@@ -10,6 +10,8 @@ from gdro_loss import LossComputer
 import collections
 from early_stopping import EarlyStopping
 import time
+
+
 def train_batched(model=None, num_epochs=30, dataloader=None, dataloader_test=None, dataloader_val=None,
                   weight_decay=0, lr=0.001, flatten=False, gdro=False, num_groups=None,
                   num_sources=None,
