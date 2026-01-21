@@ -15,11 +15,29 @@ class cmnist:
     n_maj_sources: int = 3
     num_classes: int = 2
     binary_classification: bool = True
+    num_digits_per_target: int = 5
 
 @dataclass
-class cmnist_ood:
-    data_mode: str = 'cmnist_ood'
-    model_name: str = 'BayesianNetRes50ULarger'
+class cmnist_easier:
+    data_mode: str = 'cmnist'
+    model_name: str = 'BayesianNetDino'
+    lr: float = 1e-4
+    batch_size: int = 130
+    num_epochs: int = 50
+    num_majority_points: int = 4000
+    num_minority_points: int = 400 #400
+    al_iters: int  = 100
+    al_size: int = 10
+    batch_size_test: int = 64
+    n_maj_sources: int = 3
+    num_classes: int = 2
+    binary_classification: bool = True
+    num_digits_per_target: int = 2
+
+@dataclass
+class cmnist_10:
+    data_mode: str = 'cmnist_10'
+    model_name: str = 'BayesianNetDino'
     lr: float = 1e-4
     batch_size: int = 130
     num_epochs: int = 50
@@ -27,22 +45,6 @@ class cmnist_ood:
     num_minority_points: int = 400
     al_iters: int  = 100
     al_size: int = 10
-    batch_size_test: int = 64
-    n_maj_sources: int = 3
-    num_classes: int = 2
-    binary_classification: bool = True
-
-@dataclass
-class cmnist_10:
-    data_mode: str = 'cmnist'
-    model_name: str = 'BayesianNetRes50ULarger'
-    lr: float = 1e-4
-    batch_size: int = 130
-    num_epochs: int = 50
-    num_majority_points: int = 20000
-    num_minority_points: int = 2000
-    al_iters: int  = 100
-    al_size: int = 100
     batch_size_test: int = 64
     n_maj_sources: int = 3
     num_classes: int = 10
@@ -75,7 +77,7 @@ class celeba:
     al_iters: int  = 100
     al_size: int = 90
     batch_size_test: int = 2
-    n_maj_sources: int = 7
+    n_maj_sources: int = 3
     num_classes: int = 2
 
 @dataclass

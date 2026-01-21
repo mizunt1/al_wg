@@ -181,9 +181,9 @@ def iwildcam_n_sources(n_sources, max_training_data_size=None, img_size=None):
         data_sources_test[sorted_keys_top_15[-i-1]] = testing
     return dataset, data_sources, data_sources_test
 
-def camelyon17(max_training_data_size, group_proportions=[], img_size=None):
-    if len(group_proportions) >0:
-        assert math.isclose(sum(group_proportions),1, rel_tol=0.02)
+def camelyon17(max_training_data_size, source_proportions=[], img_size=None):
+    if len(source_proportions) >0:
+        assert math.isclose(sum(source_proportions),1, rel_tol=0.02)
     if img_size == None:
         img_size = 96
     trans = transforms.Compose(
@@ -206,10 +206,10 @@ def camelyon17(max_training_data_size, group_proportions=[], img_size=None):
         if max_training_data_size == None:
             sample_idx_train = [j for j in range(800, max_points[i])]
         else:
-            if len(group_proportions) == 0:
+            if len(source_proportions) == 0:
                 data_size = max_training_data_size // 5
             else:
-                data_size = int(max_training_data_size*group_proportions[i])
+                data_size = int(max_training_data_size*source_proportions[i])
                 sample_idx_train = [j for j in range(800, data_size)]
         training = dataset.get_subset_based_on_metadata(rng_state,
                                                         i, index_col, sample_idx=sample_idx_train,
@@ -411,6 +411,70 @@ def cmnist_n_sources(num_minority_points, num_majority_points,
                          'y0g_test': datasety0g_test, 'y1g_test': datasety1g_test}
 
     return dataset, data_sources, data_sources_test, data_sources_val
+
+def cmnist_10_n_sources(num_minority_points, num_majority_points,
+                        n_maj_sources, causal_noise=0, spurious_noise=0, num_digits_per_target=5, binary_classification=False):
+    trans = transforms.Compose([transforms.ToTensor()])
+    start_idx = 0
+    data_sources = collections.defaultdict()
+    if num_digits_per_target == 1:
+        multiplier = 5
+    else:
+        multiplier = 1
+    dataset = ColoredMNISTRAM(root='./data', spurious_noise=spurious_noise, 
+                              causal_noise=causal_noise,
+                              transform=trans, start_idx=start_idx, num_samples=num_minority_points*multiplier, 
+                              red=1, source_id=0, num_digits_per_target=num_digits_per_target,
+                              binary_classification=binary_classification)
+    data_sources[0] = dataset
+    start_idx += num_minority_points*multiplier
+
+    num_majority_points_per_group = num_majority_points // n_maj_sources
+    for i in range(1, n_maj_sources + 1):
+        dataset = ColoredMNISTRAM(root='./data', spurious_noise=spurious_noise, 
+                                  causal_noise=causal_noise,
+                                  transform=trans, start_idx=start_idx, num_samples=num_majority_points_per_group*multiplier, 
+                                  red=0, source_id=i, num_digits_per_target=num_digits_per_target,
+                                  binary_classification=binary_classification)
+        start_idx += num_majority_points_per_group*multiplier
+        data_sources[i] = dataset
+
+    val_dict = collections.defaultdict()
+    test_dict = collections.defaultdict()
+    for i in range(10):
+        datasetyir_val = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                         causal_noise=0,
+                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                         source_id=0, red=0, specified_class = i,
+                                         num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+        val_dict[f'{i}_r'] = datasetyir_val
+    start_idx += 5000
+    for i in range(10):
+        datasetyig_val = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                         causal_noise=0,
+                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                         source_id=0, red=0, specified_class = i,
+                                         num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+        val_dict[f'{i}_g'] = datasetyig_val
+    start_idx += 5000
+    for i in range(10):
+        datasetyir_test = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                         causal_noise=0,
+                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                         source_id=0, red=1, specified_class = i,
+                                         num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+        test_dict[f'{i}_r'] = datasetyir_test
+    start_idx += 5000
+    for i in range(10):
+        datasetyig_test = ColoredMNISTRAM(root='./data', spurious_noise=0, 
+                                         causal_noise=0,
+                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                         source_id=0, red=1, specified_class = i,
+                                         num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+        test_dict[f'{i}_g'] =  datasetyig_test
+
+
+    return dataset, data_sources, test_dict, val_dict
 
 def cmnist_n_sources_ood(num_minority_points, num_majority_points,
                      n_maj_sources, causal_noise=0, spurious_noise=0, num_digits_per_target=5, binary_classification=True):

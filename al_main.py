@@ -23,7 +23,7 @@ from acquisitions import (Random, UniformSources,
                           EntropyUniformSources, MI, EntropyPerSourceNLargest, EntropyPerSourceOrdered)
 from data_loading import (waterbirds_n_sources, celeba_n_sources,
                           cmnist_n_sources, camelyon17, camelyon17_ood, cmnist_n_sources_ood,
-                          fmow, fmow_ood)
+                          fmow, fmow_ood, cmnist_10_n_sources)
 from torch.utils.data import ConcatDataset, DataLoader
 import arguments
 
@@ -75,6 +75,16 @@ def main(args):
                                                                        binary_classification=args.binary_classification)
         num_sources = args.n_maj_sources + 1
         num_groups = 4
+    if args.data_mode == 'cmnist_10':
+        dataset, training_data_dict, val_data_dict, test_data_dict = cmnist_10_n_sources(args.num_minority_points, args.num_majority_points,
+                                                                                         n_maj_sources=args.n_maj_sources,
+                                                                                         causal_noise=args.causal_noise,
+                                                                                         spurious_noise=args.spurious_noise,
+                                                                                         num_digits_per_target=1,
+                                                                                         binary_classification=False)
+        num_sources = args.n_maj_sources + 1
+        num_groups = 20
+
     if args.data_mode == 'cmnist_ood':
         dataset, training_data_dict, val_data_dict, test_data_dict = cmnist_n_sources_ood(args.num_minority_points, args.num_majority_points,
                                                                            n_maj_sources=args.n_maj_sources,
@@ -262,7 +272,6 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--mode', type=str, default='wb')
-    parser.add_argument('--num_digits_per_target', type=int, default=5)
     parser.add_argument('--weight_decay', type=float, default=0)
     parser.add_argument('--m_sources_size', type=int, default=2)
     parser.add_argument('--temperature', type=float, default=0.1)
@@ -275,6 +284,7 @@ if __name__ == "__main__":
     parser.add_argument('--frozen_weights', default=False, action='store_true')
     parser.add_argument('--pretrained', default=False, action='store_true')
 
+    parser.add_argument('--num_digits_per_target', type=int, default=None)
     parser.add_argument('--max_training_data_size', type=int, default=None)
     parser.add_argument('--min_prop', type=float, default=None)
     parser.add_argument('--num_batch_val_samples', type=int, default=None)
