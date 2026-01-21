@@ -96,9 +96,12 @@ class ColoredMNISTRAM(datasets.VisionDataset):
 
     def prepare_colored_mnist(self, num_digits_per_target=5):
         assert num_digits_per_target <= 5
+            
         target_y0 = [i for i in range(5)][:num_digits_per_target]
         target_y1 = [i for i in range(5,10)][:num_digits_per_target]
         used_digits = target_y0 + target_y1
+        if not self.binary_classification:
+            used_digits = [i for i in range(10)]
         train_mnist = datasets.mnist.MNIST(self.root, train=self.train, download=True)
         train_mnist = Subset(
             train_mnist, [i for i in range(self.start_idx, self.start_idx + self.num_samples)])
@@ -123,7 +126,6 @@ class ColoredMNISTRAM(datasets.VisionDataset):
                 dataset.append((Image.fromarray(colored_arr), label))
             else:
                 pass
-
         if self.specified_class != None:
             self.data_label_tuples = [data for data in dataset if data[1] == self.specified_class]
         else:

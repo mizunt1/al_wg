@@ -341,7 +341,7 @@ def cmnist_n_sources(num_minority_points, num_majority_points,
                               causal_noise=causal_noise,
                               transform=trans, start_idx=start_idx, num_samples=num_minority_points*multiplier, 
                               red=1, source_id=0, num_digits_per_target=num_digits_per_target,
-                              binary_classification=binary_classification)
+                              binary_classification=binary_classification, train=True)
     data_sources[0] = dataset
     start_idx += num_minority_points*multiplier
 
@@ -351,7 +351,7 @@ def cmnist_n_sources(num_minority_points, num_majority_points,
                                   causal_noise=causal_noise,
                                   transform=trans, start_idx=start_idx, num_samples=num_majority_points_per_group*multiplier, 
                                   red=0, source_id=i, num_digits_per_target=num_digits_per_target,
-                                  binary_classification=binary_classification)
+                                  binary_classification=binary_classification, train=True)
         start_idx += num_majority_points_per_group*multiplier
         data_sources[i] = dataset
 
@@ -359,50 +359,50 @@ def cmnist_n_sources(num_minority_points, num_majority_points,
                                         causal_noise=0,
                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
                                         source_id=0, red=0, specified_class = 0,
-                                        num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+                                        num_digits_per_target=num_digits_per_target,binary_classification=binary_classification, train=True)
     datasety1g_val = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                         causal_noise=0,
                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
                                         source_id=0, red=0, specified_class =1,
-                                        num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+                                        num_digits_per_target=num_digits_per_target,binary_classification=binary_classification, train=True)
 
     start_idx += 5000
     datasety0g_val = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                       causal_noise=0, specified_class=0,
                                       transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
                                       source_id=1, red=1, num_digits_per_target=num_digits_per_target,
-                                      binary_classification=binary_classification)
+                                      binary_classification=binary_classification,train=True)
 
     datasety1r_val = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                         causal_noise=0, specified_class=1,
                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
                                         source_id=1, red=1,num_digits_per_target=num_digits_per_target,
-                                        binary_classification=binary_classification)
+                                        binary_classification=binary_classification,train=True)
 
-    start_idx += 5000
+    start_idx = 0
     datasety0r_test = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                         causal_noise=0,
                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
                                         source_id=0, red=0, specified_class = 0,
-                                        num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+                                        num_digits_per_target=num_digits_per_target,binary_classification=binary_classification,train=False)
     datasety1g_test = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                         causal_noise=0,
                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
                                         source_id=0, red=0, specified_class =1,
-                                        num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+                                        num_digits_per_target=num_digits_per_target,binary_classification=binary_classification, train=False)
 
     start_idx += 5000
     datasety0g_test = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                       causal_noise=0, specified_class=0,
                                       transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
                                       source_id=1, red=1,num_digits_per_target=num_digits_per_target,
-                                      binary_classification=binary_classification)
+                                      binary_classification=binary_classification,train=False)
 
     datasety1r_test = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                         causal_noise=0, specified_class=1,
                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
                                         source_id=1, red=1,num_digits_per_target=num_digits_per_target,
-                                        binary_classification=binary_classification)
+                                        binary_classification=binary_classification,train=False)
 
     data_sources_val = {'y0r_val': datasety0r_val, 'y1r_val': datasety1r_val,
                         'y0g_val': datasety0g_val, 'y1g_val': datasety1g_val}
@@ -414,18 +414,15 @@ def cmnist_n_sources(num_minority_points, num_majority_points,
 
 def cmnist_10_n_sources(num_minority_points, num_majority_points,
                         n_maj_sources, causal_noise=0, spurious_noise=0, num_digits_per_target=5, binary_classification=False):
+    multiplier = 1
     trans = transforms.Compose([transforms.ToTensor()])
     start_idx = 0
     data_sources = collections.defaultdict()
-    if num_digits_per_target == 1:
-        multiplier = 5
-    else:
-        multiplier = 1
     dataset = ColoredMNISTRAM(root='./data', spurious_noise=spurious_noise, 
                               causal_noise=causal_noise,
                               transform=trans, start_idx=start_idx, num_samples=num_minority_points*multiplier, 
                               red=1, source_id=0, num_digits_per_target=num_digits_per_target,
-                              binary_classification=binary_classification)
+                              binary_classification=binary_classification, train=True)
     data_sources[0] = dataset
     start_idx += num_minority_points*multiplier
 
@@ -435,44 +432,48 @@ def cmnist_10_n_sources(num_minority_points, num_majority_points,
                                   causal_noise=causal_noise,
                                   transform=trans, start_idx=start_idx, num_samples=num_majority_points_per_group*multiplier, 
                                   red=0, source_id=i, num_digits_per_target=num_digits_per_target,
-                                  binary_classification=binary_classification)
+                                  binary_classification=binary_classification, train=True)
         start_idx += num_majority_points_per_group*multiplier
         data_sources[i] = dataset
-
+        
     val_dict = collections.defaultdict()
     test_dict = collections.defaultdict()
     for i in range(10):
         datasetyir_val = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                          causal_noise=0,
                                          transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
-                                         source_id=0, red=0, specified_class = i,
-                                         num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+                                         source_id=0, red=1, specified_class = i,
+                                         num_digits_per_target=1,
+                                         binary_classification=False, train=True)
         val_dict[f'{i}_r'] = datasetyir_val
+
     start_idx += 5000
     for i in range(10):
         datasetyig_val = ColoredMNISTRAM(root='./data', spurious_noise=0, 
                                          causal_noise=0,
                                          transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
                                          source_id=0, red=0, specified_class = i,
-                                         num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+                                         num_digits_per_target=1,
+                                         binary_classification=False,  train=True)
         val_dict[f'{i}_g'] = datasetyig_val
-    start_idx += 5000
+    start_idx = 0
     for i in range(10):
         datasetyir_test = ColoredMNISTRAM(root='./data', spurious_noise=0, 
-                                         causal_noise=0,
-                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
-                                         source_id=0, red=1, specified_class = i,
-                                         num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+                                          causal_noise=0,
+                                          transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                          source_id=0, red=1, specified_class = i,
+                                          num_digits_per_target=1,
+                                          binary_classification=False, train=False)
         test_dict[f'{i}_r'] = datasetyir_test
     start_idx += 5000
     for i in range(10):
         datasetyig_test = ColoredMNISTRAM(root='./data', spurious_noise=0, 
-                                         causal_noise=0,
-                                         transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
-                                         source_id=0, red=1, specified_class = i,
-                                         num_digits_per_target=num_digits_per_target,binary_classification=binary_classification)
+                                          causal_noise=0,
+                                          transform=trans, start_idx=start_idx, num_samples=5000*multiplier,
+                                          source_id=0, red=0, specified_class = i,
+                                          num_digits_per_target=1,
+                                          binary_classification=False,  train=False)
         test_dict[f'{i}_g'] =  datasetyig_test
-
 
     return dataset, data_sources, test_dict, val_dict
 
