@@ -115,6 +115,27 @@ class EntropyPerSource(ActiveLearningAcquisitions):
 
             return final_indices
 
+class EntropyBatch(ActiveLearningAcquisitions):
+    def __init__(self, al_data=None, al_size=None, mode='softmax'):
+        self.al_data = al_data
+        self.pool_indices = self.al_data.pool.indices
+        self.al_size = al_size
+        self.mode = mode
+        self.ents = None
+        self.source_ids = None
+    
+    def information_for_acquisition(self, model):
+        pool_loader = self.al_data.get_pool_loader(64)
+        self.indices = self.al_data.pool.indices
+        self.ents = calc_ent_per_point_batched(model, pool_loader)
+        return None
+
+    def return_indices(self):
+        candidate_batch = get_stochastic_samples(
+            torch.Tensor(self.ents), coldness=1, batch_size=self.al_size,
+            mode=self.mode)
+        return candidate_batch.indices
+    
 class EntropyPerSourceNLargest(ActiveLearningAcquisitions):
     def __init__(self, al_data=None, al_size=None, n=1, num_sources=None, within_source_acquisition='random'):
         self.al_data = al_data

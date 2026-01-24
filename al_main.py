@@ -20,10 +20,13 @@ from waterbirds_dataset import WaterbirdsDataset
 from trainer import train_batched, test_batched
 from acquisitions import (Random, UniformSources,
                           EntropyPerSource, AccuracyPerSource, Entropy,
-                          EntropyUniformSources, MI, EntropyPerSourceNLargest, EntropyPerSourceOrdered)
+                          EntropyUniformSources, MI,
+                          EntropyPerSourceNLargest, EntropyPerSourceOrdered,
+                          EntropyBatch)
+
 from data_loading import (waterbirds_n_sources, celeba_n_sources,
                           cmnist_n_sources, camelyon17, camelyon17_ood, cmnist_n_sources_ood,
-                          fmow, fmow_ood, cmnist_10_n_sources)
+                          fmow, fmow_ood, cmnist_10_n_sources, camelyon17_2sources)
 from torch.utils.data import ConcatDataset, DataLoader
 import arguments
 
@@ -105,6 +108,17 @@ def main(args):
         dataset.set_source_string_map(source_string_map)
         num_groups = 5
         num_sources = 5
+
+    if args.data_mode == 'camelyon2s':
+        source_proportions = args.source_proportions
+        if source_proportions is None:
+            source_proportions = np.random.dirichlet(np.ones(5))
+        print(source_proportions)
+        dataset, training_data_dict, val_data_dict, test_data_dict = camelyon17_2sources(max_training_data_size=6000, source_proportions=source_proportions)
+        source_string_map = {str(key): key for key, value in training_data_dict.items()}
+        dataset.set_source_string_map(source_string_map)
+        num_groups = 5
+        num_sources = 2
 
     if args.data_mode == 'camelyon_ood':
         source_proportions = args.source_proportions
@@ -197,7 +211,20 @@ def main(args):
         'entropy': Entropy(al_data=al_data, al_size=args.al_size),
         'mi': MI(al_data=al_data, al_size=args.al_size),
         'entropy_uniform_sources': EntropyUniformSources(al_data=al_data, al_size=args.al_size),
-        'entropy_per_source_n_largest': EntropyPerSourceNLargest(al_data=al_data, al_size=args.al_size, n=args.m_sources_size, num_sources=num_sources)}
+        'entropy_per_source_n_largest': EntropyPerSourceNLargest(al_data=al_data,
+                                                                 al_size=args.al_size,
+                                                                 n=args.m_sources_size,
+                                                                 num_sources=num_sources),
+        'entropy_per_point_soft_rank': EntropyBatch(al_data=al_data,
+                                                    al_size=args.al_size, mode='softrank'),
+        'entropy_per_point_soft_max': EntropyBatch(al_data=al_data,
+                                                   al_size=args.al_size, mode='softmax'),
+        'entropy_per_point_power': EntropyBatch(al_data=al_data, al_size=args.al_size, mode='power')}
+        
+
+    
+
+
     mi = False
     if args.acquisition == 'mi':
         mi = True

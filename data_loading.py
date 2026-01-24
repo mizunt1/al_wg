@@ -11,7 +11,7 @@ import numpy as np
 import collections
 import math
 from fmow_dataset import FMoWDataset
-
+from torch.utils.data import ConcatDataset
 def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources=3,
                metadata_path='metadata_largerv2.csv', root_dir='data/', img_size=None):
     use_cuda = True
@@ -217,6 +217,45 @@ def camelyon17(max_training_data_size, source_proportions=[], img_size=None):
         data_sources[i] = training
         data_sources_test[i] = testing
         data_sources_val[i] = val
+    return dataset, data_sources, data_sources_val, data_sources_test
+
+def camelyon17_2sources(max_training_data_size, source_proportions=[], img_size=None):
+    if len(source_proportions) >0:
+        assert math.isclose(sum(source_proportions),1, rel_tol=0.02)
+    if img_size == None:
+        img_size = 96
+    trans = transforms.Compose(
+        [transforms.Resize((img_size, img_size)), transforms.ToTensor()])
+    dataset = Camelyon17Dataset(root_dir='/tmp/')
+    index_col = 0
+    max_points = dataset.list_number_of_points_per_source()
+    print(max_points)
+    data_sources = collections.defaultdict()
+    data_sources_test = collections.defaultdict()
+    data_sources_val = collections.defaultdict()
+    rng_state = np.random.get_state()
+    for i in range(5):
+        testing = dataset.get_subset_based_on_metadata(
+            rng_state, i, index_col, sample_idx=[j for j in range(400)],
+            transform=trans, source_id=i)
+        sample_idx_val = [j for j in range(400, 800)]
+        val = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=sample_idx_val,
+                                                        transform=trans, source_id=i)
+        if max_training_data_size == None:
+            sample_idx_train = [j for j in range(800, max_points[i])]
+        else:
+            if len(source_proportions) == 0:
+                data_size = max_training_data_size // 5
+            else:
+                data_size = int(max_training_data_size*source_proportions[i])
+                sample_idx_train = [j for j in range(800, data_size)]
+        training = dataset.get_subset_based_on_metadata(rng_state,
+                                                        i, index_col, sample_idx=sample_idx_train,
+                                                        transform=trans, source_id=i)
+        data_sources[i] = training
+        data_sources_test[i] = testing
+        data_sources_val[i] = val
+    data_sources = {0: data_sources[0], 1: ConcatDataset([data_sources[i] for i in range(1,5)])}
     return dataset, data_sources, data_sources_val, data_sources_test
 
 def camelyon17_ood(max_training_data_size, group_proportions=[], test_source=0, img_size=None):
