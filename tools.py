@@ -178,7 +178,7 @@ def calc_ent_per_point_batched(model, dataloader, num_models=100, mean=False, mi
                 break
 
     if mean:
-        return sum(ents)/len(ents)
+        return sum(ents)/(len(ents) + 1e-3)
     else:
         return ents
 
