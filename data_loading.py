@@ -81,7 +81,6 @@ def waterbirds_n_sources(num_minority_points, num_majority_points, n_maj_sources
 def celeba_n_sources(num_minority_points, num_majority_points, n_maj_sources = 3, root_dir='/tmp/', img_size=None):
     #  minority group is mb fnb
     # celeba dataset must be moved with the following command to /tmp/
-    # cp -r /network/scratch/m/mizu.nishikawa-toomey/celeba /tmp/
     if img_size != None:
         trans = transforms.Compose([transforms.Resize((img_size, img_size)), transforms.PILToTensor()])
     else:
@@ -152,34 +151,6 @@ def celeba_n_sources(num_minority_points, num_majority_points, n_maj_sources = 3
     return test_mb, data_sources, val_data_dict, test_data_dict
 
 
-def iwildcam_n_sources(n_sources, max_training_data_size=None, img_size=None):
-    if img_size == None:
-        img_size = 512
-    trans = transforms.Compose(
-        [transforms.Resize((img_size, img_size)), transforms.ToTensor()])
-
-
-    dataset = IWildCamDataset(root_dir='/network/scratch/m/mizu.nishikawa-toomey')
-    points = dataset.list_number_of_points_per_env()
-    sorted_points = {k: v for k, v in sorted(points.items(), key=lambda item: item[1])}
-    sorted_keys_top_15 = [*sorted_points.keys()][-15:]
-    # [101, 255, 188, 120, 2, 296, 307, 221, 139, 26, 54, 265, 230, 187, 288]
-    sorted_values_top_15 = [*sorted_points.values()][-15:]
-    # [3020, 3176, 3441, 3499, 3520, 3550, 3559, 3722, 3766, 3960, 3990, 4010, 4439, 7600, 8494]
-    data_sources = collections.defaultdict()
-    data_sources_test = collections.defaultdict()
-    for i in range(n_sources):
-        testing = dataset.get_subset_based_on_metadata(
-            sorted_keys_top_15[-i-1], index_col='location_remapped', sample_idx=[j for j in range(200)], transform=trans)
-        if max_training_data_size == None:
-            sample_idx = [j for j in range(200, sorted_values_top_15[-i-1])]
-        else:
-            sample_idx = [j for j in range(200, max_training_data_size + 200)]
-        training = dataset.get_subset_based_on_metadata(sorted_keys_top_15[-i-1], index_col='location_remapped', sample_idx=sample_idx,
-                                                        transform=trans)
-        data_sources[sorted_keys_top_15[-i-1]] = training
-        data_sources_test[sorted_keys_top_15[-i-1]] = testing
-    return dataset, data_sources, data_sources_test
 
 def camelyon17(max_training_data_size, source_proportions=[], img_size=None):
     if len(source_proportions) >0:
@@ -294,40 +265,6 @@ def camelyon17_ood(max_training_data_size, group_proportions=[], test_source=0, 
 
     return dataset, data_sources, data_sources_test
 
-def fmow(max_training_data_size, group_proportions=[], img_size=None, num_sources=5, test_size=400):
-    if len(group_proportions) >0:
-        assert math.isclose(sum(group_proportions),1, rel_tol=0.02), f"group proportions dont sum to one, sums to {sum(group_proportions)}"
-    
-    if img_size == None:
-        img_size = 224
-    trans = transforms.Compose(
-        [transforms.Resize((img_size, img_size)), transforms.ToTensor()])
-    
-    dataset = FMoWDataset(root_dir='/network/scratch/m/mizu.nishikawa-toomey')
-    index_col = 0
-    max_points = dataset.list_number_of_points_per_source()
-    print(f"number of points in each source in whole dataset {max_points}")
-    data_sources = collections.defaultdict()
-    data_sources_test = collections.defaultdict()
-    rng_state = np.random.get_state()
-    for i in range(num_sources):
-        testing = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=[j for j in range(test_size)], transform=trans, source_id=i)
-        if max_training_data_size == None:
-            sample_idx_train = [j for j in range(test_size, max_points[i])]
-            data_size = len(sample_idx_train)
-        else:
-            if len(group_proportions) == 0:
-                data_size = max_training_data_size // 5
-            else:
-                data_size = int(max_training_data_size*group_proportions[i])
-            sample_idx_train = [j for j in range(test_size, data_size + test_size)]
-        assert max_points[i] >= data_size + test_size, f"for source {i}, requested points {data_size + test_size} is larger than availabe data size {max_points[i]}"
-
-        training = dataset.get_subset_based_on_metadata(rng_state, i, index_col, sample_idx=sample_idx_train,
-                                                        transform=trans, source_id=i)
-        data_sources[i] = training
-        data_sources_test[i] = testing
-    return dataset, data_sources, data_sources_test
 
 def fmow_ood(max_training_data_size, group_proportions=[], img_size=None, num_sources=5, test_size=400, test_source=0):
     if len(group_proportions) >0:
