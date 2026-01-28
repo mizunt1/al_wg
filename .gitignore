@@ -4,3 +4,4 @@ results*
 create_new_metadata*
 wandb*
 test*
+*.sh
