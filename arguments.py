@@ -32,7 +32,7 @@ class cmnist_easier:
     n_maj_sources: int = 3
     num_classes: int = 2
     binary_classification: bool = True
-    num_digits_per_target: int = 2
+    num_digits_per_target: int = 1
 
 @dataclass
 class cmnist_10:
@@ -72,8 +72,8 @@ class celeba:
     lr: float = 1e-6
     batch_size: int = 2
     num_epochs: int = 60
-    num_majority_points: int = 15000
-    num_minority_points: int = 300
+    num_majority_points: int = 40000
+    num_minority_points: int = 400
     al_iters: int  = 100
     al_size: int = 90
     batch_size_test: int = 2
@@ -113,6 +113,23 @@ class fmow_ood:
 @dataclass
 class camelyon:
     data_mode: str = 'camelyon'
+    model_name: str = 'BayesianNetDino'
+    lr: float = 1e-5
+    batch_size: int = 10
+    num_epochs: int = 50
+    num_majority_points: int = 4000
+    num_minority_points: int = 400
+    al_iters: int  = 100
+    al_size: int = 5
+    batch_size_test: int = 10
+    n_maj_sources: int = 4
+    num_classes: int = 2
+    group_proportions: list = field(default_factory=lambda: [0.2 for i in range(1)])
+    max_training_data_size: int = None
+
+@dataclass
+class camelyon2s:
+    data_mode: str = 'camelyon2s'
     model_name: str = 'BayesianNetDino'
     lr: float = 1e-5
     batch_size: int = 10

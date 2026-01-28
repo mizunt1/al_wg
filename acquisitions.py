@@ -134,7 +134,7 @@ class EntropyBatch(ActiveLearningAcquisitions):
         candidate_batch = get_stochastic_samples(
             torch.Tensor(self.ents), coldness=1, batch_size=self.al_size,
             mode=self.mode)
-        return candidate_batch.indices
+        return self.indices[candidate_batch.indices]
     
 class EntropyPerSourceNLargest(ActiveLearningAcquisitions):
     def __init__(self, al_data=None, al_size=None, n=1, num_sources=None, within_source_acquisition='random'):
